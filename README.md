@@ -185,6 +185,36 @@ pnpm build
 - ✅ **RESTful API**：标准化的 API 接口，自动生成文档
 - ✅ **Docker 部署**：一键启动所有服务
 - ✅ **健康监控**：完整的服务健康检查机制
+- ✅ **CI/CD 集成**：GitHub Actions 自动构建 Docker 镜像
+
+### 🐳 使用预构建的 Docker 镜像
+
+GitHub Actions 会自动构建并发布 Docker 镜像到 GitHub Container Registry：
+
+**镜像地址：**
+- 后端：`ghcr.io/<你的用户名>/soybean-admin/backend:latest`
+- 前端：`ghcr.io/<你的用户名>/soybean-admin/frontend:latest`
+
+**快速启动：**
+
+```bash
+# 1. 拉取配置文件
+wget https://raw.githubusercontent.com/<你的仓库>/feat-split-front-back-python-docker-mysql-redis/docker-compose.ghcr.yml
+
+# 2. 修改配置中的 <YOUR_GITHUB_USERNAME> 为你的用户名
+
+# 3. 启动服务
+docker-compose -f docker-compose.ghcr.yml up -d
+
+# 4. 访问服务
+# API文档: http://localhost:8000/docs
+# 健康检查: http://localhost:8000/api/health
+```
+
+**详细说明：**
+- 📖 [Docker镜像使用指南](DOCKER镜像使用指南.md) - 完整的镜像使用文档
+- 📋 [镜像快速参考](镜像快速参考.md) - 常用命令速查表
+- 🔧 [docker-compose.ghcr.yml](docker-compose.ghcr.yml) - 使用镜像的配置文件
 
 ### ⚡ 快速开始
 
