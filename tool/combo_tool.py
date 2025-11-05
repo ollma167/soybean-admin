@@ -2169,37 +2169,19 @@ elif page == "📱 抖音下载":
             
             if 'desc' in video_info and video_info['desc']:
                 st.markdown(f"""
-                    <div style='margin: 20px 0; color: var(--text); font-size: 16px; line-height: 1.7; font-weight: 500;'>
+                    <div style='margin: 16px 0 20px 0; color: var(--text); font-size: 15px; line-height: 1.7; font-weight: 500;'>
                         {video_info['desc']}
                     </div>
                 """, unsafe_allow_html=True)
             
-            meta_items = []
             author_name = video_info.get('author_name', video_info.get('author', video_info.get('nickname', '')))
-            if author_name:
-                meta_items.append(f"<span style='color: var(--text);'>👤 {author_name}</span>")
-            
             create_time = video_info.get('create_time', video_info.get('createTime', ''))
-            if create_time:
-                meta_items.append(f"<span style='color: var(--muted);'>📅 {create_time}</span>")
-            
-            if meta_items:
-                st.markdown(f"""
-                    <div style='padding: 12px 0; color: var(--muted); font-size: 14px; display: flex; gap: 20px; flex-wrap: wrap; border-bottom: 1px solid var(--border);'>
-                        {' '.join(meta_items)}
-                    </div>
-                """, unsafe_allow_html=True)
             
             primary_stats_mapping = [
                 ('comment_count', 'comment', 'commentCount', '评论', '💬'),
                 ('like_count', 'digg_count', 'like', 'likeCount', 'diggCount', '点赞', '❤️'),
                 ('share_count', 'share', 'shareCount', '分享', '📤'),
                 ('collect_count', 'collect', 'collectCount', '收藏', '⭐')
-            ]
-            
-            secondary_stats_mapping = [
-                ('play_count', 'play', 'playCount', 'view_count', '播放', '▶️'),
-                ('forward_count', 'forward', 'forwardCount', '转发', '🔄')
             ]
             
             primary_stats = []
@@ -2210,68 +2192,70 @@ elif page == "📱 抖音下载":
                     if field in video_info and video_info[field]:
                         value = video_info[field]
                         break
-                if value and value > 0:
-                    primary_stats.append((label, value, icon))
+                if value is not None and value >= 0:
+                    formatted_count = value
+                    if value >= 10000:
+                        formatted_count = f"{value/10000:.1f}w"
+                    elif value >= 1000:
+                        formatted_count = f"{value/1000:.1f}k"
+                    else:
+                        formatted_count = str(value)
+                    primary_stats.append((label, formatted_count, icon))
             
-            secondary_stats = []
-            for fields in secondary_stats_mapping:
-                *field_names, label, icon = fields
-                value = None
-                for field in field_names:
-                    if field in video_info and video_info[field]:
-                        value = video_info[field]
-                        break
-                if value and value > 0:
-                    secondary_stats.append((label, value, icon))
+            while len(primary_stats) < 4:
+                primary_stats.append(('', '0', ''))
             
-            if primary_stats:
-                st.markdown("""
-                    <div style='padding: 20px 0 16px 0;'>
-                        <div style='display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;'>
+            st.markdown("""
+                <table style='width: 100%; border-collapse: collapse; margin: 20px 0; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.03) 100%); border-radius: 12px; overflow: hidden; border: 1px solid rgba(16,163,127,.15);'>
+                    <thead>
+                        <tr style='background: rgba(16,163,127,0.08); border-bottom: 2px solid rgba(16,163,127,.2);'>
+                            <th style='padding: 14px 16px; text-align: left; color: var(--text); font-weight: 600; font-size: 14px; width: 35%;'>信息</th>
+            """, unsafe_allow_html=True)
+            
+            for label, formatted_count, icon in primary_stats:
+                st.markdown(f"""
+                    <th style='padding: 14px 10px; text-align: center; color: var(--text); font-weight: 600; font-size: 14px; width: 16.25%;'>
+                        <div style='font-size: 20px; margin-bottom: 2px;'>{icon}</div>
+                    </th>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("</tr></thead><tbody>", unsafe_allow_html=True)
+            
+            if author_name:
+                st.markdown(f"""
+                    <tr style='border-bottom: 1px solid rgba(16,163,127,.1);'>
+                        <td style='padding: 14px 16px; color: var(--text); font-size: 14px;'>
+                            <span style='color: var(--muted); margin-right: 6px;'>👤</span>{author_name}
+                        </td>
                 """, unsafe_allow_html=True)
                 
-                for label, count, icon in primary_stats:
-                    formatted_count = count
-                    if count >= 10000:
-                        formatted_count = f"{count/10000:.1f}w"
-                    elif count >= 1000:
-                        formatted_count = f"{count/1000:.1f}k"
-                    
+                for label, formatted_count, icon in primary_stats:
                     st.markdown(f"""
-                        <div style='text-align: center; padding: 20px 12px; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.05) 100%); 
-                                    border-radius: 14px; border: 1px solid rgba(16,163,127,.12); transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,163,127,0.08);'>
-                            <div style='font-size: 22px; margin-bottom: 6px; opacity: 0.9;'>{icon}</div>
-                            <div style='color: var(--accent); font-weight: 700; font-size: 26px; margin-bottom: 6px; letter-spacing: -0.5px;'>{formatted_count}</div>
-                            <div style='color: var(--muted); font-size: 13px; font-weight: 500;'>{label}</div>
-                        </div>
+                        <td style='padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px;'>
+                            {formatted_count}
+                        </td>
                     """, unsafe_allow_html=True)
                 
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("</tr>", unsafe_allow_html=True)
+            
+            if create_time:
+                st.markdown(f"""
+                    <tr>
+                        <td style='padding: 14px 16px; color: var(--muted); font-size: 13px;'>
+                            <span style='margin-right: 6px;'>📅</span>{create_time}
+                        </td>
+                """, unsafe_allow_html=True)
                 
-                if secondary_stats:
-                    st.markdown("""
-                        <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;'>
+                for label, formatted_count, icon in primary_stats:
+                    st.markdown(f"""
+                        <td style='padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500;'>
+                            {label}
+                        </td>
                     """, unsafe_allow_html=True)
-                    
-                    for label, count, icon in secondary_stats:
-                        formatted_count = count
-                        if count >= 10000:
-                            formatted_count = f"{count/10000:.1f}w"
-                        elif count >= 1000:
-                            formatted_count = f"{count/1000:.1f}k"
-                        
-                        st.markdown(f"""
-                            <div style='text-align: center; padding: 14px 10px; background: linear-gradient(135deg, rgba(16,163,127,0.04) 0%, rgba(16,163,127,0.02) 100%); 
-                                        border-radius: 10px; border: 1px solid rgba(16,163,127,.08); transition: all 0.2s;'>
-                                <div style='font-size: 18px; margin-bottom: 4px; opacity: 0.85;'>{icon}</div>
-                                <div style='color: var(--accent); font-weight: 600; font-size: 20px; margin-bottom: 4px; letter-spacing: -0.3px;'>{formatted_count}</div>
-                                <div style='color: var(--muted); font-size: 12px; font-weight: 500;'>{label}</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
                 
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("</tr>", unsafe_allow_html=True)
+            
+            st.markdown("</tbody></table>", unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
             
@@ -2325,150 +2309,7 @@ elif page == "📱 抖音下载":
                                 )
                                 st.markdown('</div>', unsafe_allow_html=True)
                                 
-                                with st.expander("🎬 视频编辑", expanded=False):
-                                    st.markdown("""
-                                        <div style='padding: 12px; background: var(--accent-weak); border-radius: 8px; margin-bottom: 16px;'>
-                                            <div style='font-weight: 600; margin-bottom: 8px;'>✨ 简易视频编辑</div>
-                                            <div style='font-size: 13px; color: var(--muted);'>支持裁剪、添加文字、调整尺寸</div>
-                                        </div>
-                                    """, unsafe_allow_html=True)
-                                    
-                                    st.session_state['video_bytes_for_edit'] = video_bytes
-                                    
-                                    edit_tab1, edit_tab2, edit_tab3 = st.tabs(["📐 裁剪调整", "✏️ 添加文字", "🎨 效果"])
-                                    
-                                    with edit_tab1:
-                                        st.markdown("##### 尺寸调整")
-                                        
-                                        col1, col2 = st.columns(2)
-                                        with col1:
-                                            target_width = st.number_input("宽度 (px)", min_value=100, max_value=1920, value=720, step=10, key="edit_width")
-                                        with col2:
-                                            target_height = st.number_input("高度 (px)", min_value=100, max_value=1920, value=1280, step=10, key="edit_height")
-                                        
-                                        resize_method = st.selectbox("缩放方式", ["保持比例缩放", "拉伸填充", "裁剪居中"], key="resize_method")
-                                        
-                                        st.markdown("##### 裁剪区域")
-                                        st.info("💡 设置裁剪区域（百分比），0-100")
-                                        
-                                        col1, col2 = st.columns(2)
-                                        with col1:
-                                            crop_x = st.slider("X 偏移 (%)", 0, 50, 0, key="crop_x")
-                                            crop_width = st.slider("裁剪宽度 (%)", 50, 100, 100, key="crop_width")
-                                        with col2:
-                                            crop_y = st.slider("Y 偏移 (%)", 0, 50, 0, key="crop_y")
-                                            crop_height = st.slider("裁剪高度 (%)", 50, 100, 100, key="crop_height")
-                                    
-                                    with edit_tab2:
-                                        st.markdown("##### 文字设置")
-                                        
-                                        text_content = st.text_area("文字内容", placeholder="输入要添加的文字...", key="text_content")
-                                        
-                                        col1, col2, col3 = st.columns(3)
-                                        with col1:
-                                            text_size = st.slider("字体大小", 20, 100, 40, key="text_size")
-                                        with col2:
-                                            text_color = st.selectbox("文字颜色", ["白色", "黑色", "红色", "绿色", "蓝色", "黄色"], key="text_color")
-                                        with col3:
-                                            text_position = st.selectbox("位置", ["顶部", "中间", "底部"], key="text_position")
-                                        
-                                        text_bg = st.checkbox("添加文字背景", value=True, key="text_bg")
-                                    
-                                    with edit_tab3:
-                                        st.markdown("##### 视频效果")
-                                        
-                                        brightness = st.slider("亮度", 0.5, 2.0, 1.0, 0.1, key="brightness")
-                                        contrast = st.slider("对比度", 0.5, 2.0, 1.0, 0.1, key="contrast")
-                                        
-                                        rotate_angle = st.selectbox("旋转", ["不旋转", "顺时针90°", "逆时针90°", "180°"], key="rotate")
-                                        
-                                        add_border = st.checkbox("添加边框", key="add_border")
-                                        if add_border:
-                                            border_size = st.slider("边框大小 (px)", 5, 50, 10, key="border_size")
-                                    
-                                    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-                                    
-                                    if st.button("🎬 处理视频", use_container_width=True, type="primary", key="process_video"):
-                                        with st.spinner("正在处理视频，请稍候..."):
-                                            try:
-                                                from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-                                                from moviepy.video.fx import resize, crop, rotate
-                                                import tempfile
-                                                import os
-                                                
-                                                temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-                                                temp_input.write(video_bytes)
-                                                temp_input.close()
-                                                
-                                                clip = VideoFileClip(temp_input.name)
-                                                
-                                                if crop_width < 100 or crop_height < 100 or crop_x > 0 or crop_y > 0:
-                                                    w, h = clip.size
-                                                    x1 = int(w * crop_x / 100)
-                                                    y1 = int(h * crop_y / 100)
-                                                    x2 = int(w * crop_width / 100)
-                                                    y2 = int(h * crop_height / 100)
-                                                    clip = clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
-                                                
-                                                if resize_method == "保持比例缩放":
-                                                    clip = clip.resize(height=target_height)
-                                                elif resize_method == "拉伸填充":
-                                                    clip = clip.resize((target_width, target_height))
-                                                else:
-                                                    clip = clip.resize((target_width, target_height))
-                                                
-                                                if brightness != 1.0 or contrast != 1.0:
-                                                    clip = clip.fl_image(lambda img: img * brightness)
-                                                
-                                                rotate_map = {"顺时针90°": 90, "逆时针90°": -90, "180°": 180}
-                                                if rotate_angle in rotate_map:
-                                                    from moviepy.video.fx.rotate import rotate
-                                                    clip = rotate(clip, rotate_map[rotate_angle])
-                                                
-                                                clips = [clip]
-                                                
-                                                if text_content:
-                                                    color_map = {"白色": "white", "黑色": "black", "红色": "red", "绿色": "green", "蓝色": "blue", "黄色": "yellow"}
-                                                    txt_clip = TextClip(text_content, fontsize=text_size, color=color_map.get(text_color, "white"), 
-                                                                       bg_color='black' if text_bg else 'transparent', size=clip.size)
-                                                    
-                                                    pos_map = {"顶部": ('center', 50), "中间": 'center', "底部": ('center', clip.h - 50)}
-                                                    txt_clip = txt_clip.set_position(pos_map.get(text_position, 'center')).set_duration(clip.duration)
-                                                    clips.append(txt_clip)
-                                                
-                                                final_clip = CompositeVideoClip(clips)
-                                                
-                                                temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-                                                final_clip.write_videofile(temp_output.name, codec='libx264', audio_codec='aac', 
-                                                                          temp_audiofile=tempfile.mktemp(suffix='.m4a'), 
-                                                                          remove_temp=True, fps=24, preset='ultrafast')
-                                                
-                                                with open(temp_output.name, 'rb') as f:
-                                                    edited_video_bytes = f.read()
-                                                
-                                                clip.close()
-                                                final_clip.close()
-                                                os.unlink(temp_input.name)
-                                                os.unlink(temp_output.name)
-                                                
-                                                edited_size_mb = len(edited_video_bytes) / 1024 / 1024
-                                                
-                                                st.success("✅ 视频处理完成！")
-                                                st.download_button(
-                                                    label=f"下载编辑后的视频 · {edited_size_mb:.1f} MB",
-                                                    data=edited_video_bytes,
-                                                    file_name=f"edited_{time.strftime('%Y%m%d_%H%M%S')}.mp4",
-                                                    mime="video/mp4",
-                                                    use_container_width=True
-                                                )
-                                                
-                                                st.video(edited_video_bytes)
-                                                
-                                            except Exception as e:
-                                                st.error(f"❌ 处理失败：{str(e)}")
-                                                st.caption("💡 提示：视频编辑功能需要安装 moviepy 库")
-                                
-                                with st.expander("预览原视频", expanded=False):
+                                with st.expander("预览视频", expanded=False):
                                     st.video(video_bytes)
                             else:
                                 st.error(f"❌ 获取视频失败 (HTTP {video_response.status_code})")
