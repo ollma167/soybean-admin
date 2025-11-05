@@ -2205,43 +2205,22 @@ elif page == "📱 抖音下载":
             while len(primary_stats) < 4:
                 primary_stats.append(('', '0', ''))
             
-            info_html = f"""
-                <div style='margin: 20px 0; padding: 16px; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.03) 100%); 
-                            border-radius: 12px; border: 1px solid rgba(16,163,127,.15);'>
-            """
+            st.markdown('<div style="margin: 16px 0; padding: 16px; background: linear-gradient(135deg, rgba(230, 250, 242, 0.5) 0%, rgba(16, 163, 127, 0.03) 100%); border-radius: 12px; border: 1px solid rgba(16, 163, 127, 0.15);">', unsafe_allow_html=True)
             
-            if author_name:
-                info_html += f"""
-                    <div style='display: flex; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(16,163,127,.1);'>
-                        <div style='flex: 0 0 180px; color: var(--text); font-size: 14px; font-weight: 500;'>
-                            <span style='margin-right: 6px;'>👤</span>{author_name}
-                        </div>
-                """
+            if author_name or create_time:
+                row1_cols = st.columns([2, 1, 1, 1, 1])
                 
-                for label, formatted_count, icon in primary_stats:
-                    info_html += f"""
-                        <div style='flex: 1; text-align: center;'>
-                            <div style='font-size: 20px; margin-bottom: 4px;'>{icon}</div>
-                            <div style='color: var(--accent); font-weight: 700; font-size: 18px; margin-bottom: 2px;'>{formatted_count}</div>
-                            <div style='color: var(--muted); font-size: 12px;'>{label}</div>
-                        </div>
-                    """
+                with row1_cols[0]:
+                    if author_name:
+                        st.markdown(f"**👤 {author_name}**")
+                    if create_time:
+                        st.markdown(f'<span style="color: #61646b; font-size: 13px;">📅 {create_time}</span>', unsafe_allow_html=True)
                 
-                info_html += "</div>"
+                for idx, (label, formatted_count, icon) in enumerate(primary_stats):
+                    with row1_cols[idx + 1]:
+                        st.markdown(f'<div style="text-align: center;"><div style="font-size: 24px; margin-bottom: 4px;">{icon}</div><div style="color: #10a37f; font-weight: 700; font-size: 20px; margin-bottom: 2px;">{formatted_count}</div><div style="color: #61646b; font-size: 12px;">{label}</div></div>', unsafe_allow_html=True)
             
-            if create_time:
-                info_html += f"""
-                    <div style='display: flex; align-items: center;'>
-                        <div style='flex: 0 0 180px; color: var(--muted); font-size: 13px;'>
-                            <span style='margin-right: 6px;'>📅</span>{create_time}
-                        </div>
-                        <div style='flex: 1;'></div>
-                    </div>
-                """
-            
-            info_html += "</div>"
-            
-            st.markdown(info_html, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
             
