@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Tuple
 from collections import Counter
 import plotly.express as px
 import plotly.graph_objects as go
+import requests
 
 
 def format_number_chinese(value):
@@ -198,6 +199,22 @@ def inject_theme(theme_mode: str):
       div[data-testid="stExpander"] { margin-top: 0; }
       div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input { padding-top: 0.35rem; padding-bottom: 0.35rem; }
       .stButton>button, .stDownloadButton>button { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+      .stButton>button[kind="primary"], .stDownloadButton>button[kind="primary"] { 
+        background: linear-gradient(135deg, var(--accent) 0%, #0d8a6a 100%);
+        color: white; border: none; font-weight: 600;
+      }
+      .stButton>button[kind="primary"]:hover, .stDownloadButton>button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #0d8a6a 0%, var(--accent) 100%);
+        transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,163,127,.3);
+      }
+      .stSpinner>div { border-top-color: var(--accent) !important; }
+      div[data-testid="stImage"] { border-radius: 8px; overflow: hidden; }
+      div[data-testid="stImage"] img { transition: transform .2s ease; }
+      div[data-testid="stImage"]:hover img { transform: scale(1.02); }
+      div[data-testid="stExpander"] { 
+        border: 1px solid var(--border); border-radius: 8px; 
+        background: var(--card); margin: 8px 0;
+      }
       div[data-testid="stToolbar"] { visibility: hidden; height: 0; position: fixed; }
       footer { visibility: hidden; }
       #MainMenu { visibility: hidden; }
@@ -467,7 +484,7 @@ for k, v in {'temp_edits': {}, 'generated_df': None, 'txt_main_codes': "", 'txt_
 
 with st.sidebar:
     st.markdown("<div class='hero'><h1>🧩 组合装生成</h1><div class='subtle'>简约专业版</div></div>", unsafe_allow_html=True)
-    for label in ["🚀 生成组合装", "🧱 模板管理", "📊 图表生成"]:
+    for label in ["🚀 生成组合装", "🧱 模板管理", "📊 图表生成", "📱 抖音下载"]:
         active = " active" if st.session_state['page'] == label else ""
         st.markdown(f"<div class='nav-card{active}'>", unsafe_allow_html=True)
         if st.button(label, use_container_width=True, key=f"nav_{label}"): st.session_state['page'] = label
@@ -2061,3 +2078,435 @@ elif page == "📊 图表生成":
         st.caption("💡 提示：HTML和JSON格式不需要额外依赖，可直接导出。PNG/SVG/PDF需要安装kaleido库。")
         
     st.markdown('</div>', unsafe_allow_html=True)
+
+elif page == "📱 抖音下载":
+    st.markdown("""
+        <div style='padding: 30px 0 20px 0;'>
+            <h1 style='margin: 0 0 8px 0; font-size: 32px; font-weight: 600; color: var(--text); letter-spacing: -0.5px;'>
+                抖音视频解析
+            </h1>
+            <p style='margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5;'>
+                支持无水印下载，自动识别链接格式
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="card" style="padding: 20px;">', unsafe_allow_html=True)
+    
+    douyin_url_input = st.text_input(
+        "输入链接",
+        placeholder="粘贴抖音分享内容...",
+        label_visibility="collapsed",
+        key="douyin_input"
+    )
+    
+    parse_button = st.button("解析", use_container_width=True, type="primary")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if parse_button and douyin_url_input:
+        douyin_url = None
+        
+        import re
+        url_patterns = [
+            r'https?://[^\s]+douyin\.com[^\s]*',
+            r'v\.douyin\.com/[^\s]+',
+            r'www\.douyin\.com/[^\s]+',
+            r'm\.douyin\.com/[^\s]+'
+        ]
+        
+        for pattern in url_patterns:
+            match = re.search(pattern, douyin_url_input)
+            if match:
+                douyin_url = match.group(0)
+                douyin_url = douyin_url.rstrip('!！。.，,、')
+                break
+        
+        if not douyin_url:
+            douyin_url = douyin_url_input.strip()
+        
+        if douyin_url != douyin_url_input.strip():
+            st.info(f"🔗 已识别链接：{douyin_url}")
+        with st.spinner("正在解析视频信息..."):
+            try:
+                api_url = "https://zerorust.dev/api/douyin"
+                
+                response = requests.post(
+                    api_url,
+                    json={"url": douyin_url},
+                    headers={"Content-Type": "application/json"},
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    st.session_state['douyin_data'] = data
+                    st.success("✅ 解析成功！")
+                else:
+                    st.error(f"❌ 解析失败：HTTP {response.status_code}")
+                    st.error(f"错误详情：{response.text}")
+            except requests.exceptions.Timeout:
+                st.error("❌ 请求超时，请稍后重试")
+            except requests.exceptions.RequestException as e:
+                st.error(f"❌ 网络请求失败：{str(e)}")
+            except Exception as e:
+                st.error(f"❌ 解析出错：{str(e)}")
+    
+    if 'douyin_data' in st.session_state:
+        data = st.session_state['douyin_data']
+        
+        if 'code' in data and data['code'] != 200:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.error(f"❌ 解析失败：{data.get('message', '未知错误')}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        elif 'data' in data:
+            video_info = data['data']
+            
+            st.markdown('<div class="card" style="padding: 24px; margin-top: 16px;">', unsafe_allow_html=True)
+            
+            if 'cover' in video_info:
+                st.image(video_info['cover'], use_container_width=True)
+            
+            if 'desc' in video_info and video_info['desc']:
+                st.markdown(f"""
+                    <div style='margin: 20px 0; color: var(--text); font-size: 16px; line-height: 1.7; font-weight: 500;'>
+                        {video_info['desc']}
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            meta_items = []
+            author_name = video_info.get('author_name', video_info.get('author', video_info.get('nickname', '')))
+            if author_name:
+                meta_items.append(f"<span style='color: var(--text);'>👤 {author_name}</span>")
+            
+            create_time = video_info.get('create_time', video_info.get('createTime', ''))
+            if create_time:
+                meta_items.append(f"<span style='color: var(--muted);'>📅 {create_time}</span>")
+            
+            if meta_items:
+                st.markdown(f"""
+                    <div style='padding: 12px 0; color: var(--muted); font-size: 14px; display: flex; gap: 20px; flex-wrap: wrap; border-bottom: 1px solid var(--border);'>
+                        {' '.join(meta_items)}
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            stats_mapping = [
+                ('comment_count', 'comment', 'commentCount', '评论'),
+                ('like_count', 'digg_count', 'like', 'likeCount', 'diggCount', '点赞'),
+                ('share_count', 'share', 'shareCount', '分享'),
+                ('collect_count', 'collect', 'collectCount', '收藏'),
+                ('play_count', 'play', 'playCount', 'view_count', '播放'),
+                ('forward_count', 'forward', 'forwardCount', '转发')
+            ]
+            
+            stats_list = []
+            for fields in stats_mapping:
+                *field_names, label = fields
+                value = None
+                for field in field_names:
+                    if field in video_info and video_info[field]:
+                        value = video_info[field]
+                        break
+                if value and value > 0:
+                    stats_list.append((label, value))
+            
+            if stats_list:
+                st.markdown("""
+                    <div style='padding: 16px 0;'>
+                        <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px;'>
+                """, unsafe_allow_html=True)
+                
+                for label, count in stats_list:
+                    formatted_count = count
+                    if count >= 10000:
+                        formatted_count = f"{count/10000:.1f}w"
+                    elif count >= 1000:
+                        formatted_count = f"{count/1000:.1f}k"
+                    
+                    st.markdown(f"""
+                        <div style='text-align: center; padding: 16px 12px; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.05) 100%); 
+                                    border-radius: 12px; border: 1px solid rgba(16,163,127,.08); transition: all 0.2s;'>
+                            <div style='color: var(--accent); font-weight: 700; font-size: 24px; margin-bottom: 4px; letter-spacing: -0.5px;'>{formatted_count}</div>
+                            <div style='color: var(--muted); font-size: 13px;'>{label}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown("</div></div>", unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown('<div class="card" style="padding: 20px; margin-top: 16px;">', unsafe_allow_html=True)
+            
+            content_type = video_info.get('type', 'video')
+            
+            possible_video_fields = ['video_url', 'videoUrl', 'video', 'play_url', 'playUrl', 'download_url', 'downloadUrl', 'url', 'video_link', 'videoLink', 'play_addr', 'playAddr']
+            video_url = None
+            
+            for field in possible_video_fields:
+                if field in video_info:
+                    value = video_info[field]
+                    if isinstance(value, str) and value.startswith('http'):
+                        video_url = value
+                        break
+                    elif isinstance(value, dict):
+                        for sub_field in ['url', 'uri', 'link', 'url_list']:
+                            if sub_field in value:
+                                sub_value = value[sub_field]
+                                if isinstance(sub_value, str) and sub_value.startswith('http'):
+                                    video_url = sub_value
+                                    break
+                                elif isinstance(sub_value, list) and len(sub_value) > 0:
+                                    video_url = sub_value[0]
+                                    break
+                        if video_url:
+                            break
+                    elif isinstance(value, list) and len(value) > 0:
+                        if isinstance(value[0], str) and value[0].startswith('http'):
+                            video_url = value[0]
+                            break
+            
+            if content_type == 'video':
+                if video_url:
+                    with st.spinner("获取中..."):
+                        try:
+                            video_response = requests.get(video_url, timeout=30)
+                            if video_response.status_code == 200:
+                                video_bytes = video_response.content
+                                file_size_mb = len(video_bytes) / 1024 / 1024
+                                
+                                st.markdown('<div style="margin-bottom: 12px;">', unsafe_allow_html=True)
+                                st.download_button(
+                                    label=f"下载原视频 · {file_size_mb:.1f} MB",
+                                    data=video_bytes,
+                                    file_name=f"douyin_{time.strftime('%Y%m%d_%H%M%S')}.mp4",
+                                    mime="video/mp4",
+                                    use_container_width=True,
+                                    type="primary"
+                                )
+                                st.markdown('</div>', unsafe_allow_html=True)
+                                
+                                with st.expander("🎬 视频编辑", expanded=False):
+                                    st.markdown("""
+                                        <div style='padding: 12px; background: var(--accent-weak); border-radius: 8px; margin-bottom: 16px;'>
+                                            <div style='font-weight: 600; margin-bottom: 8px;'>✨ 简易视频编辑</div>
+                                            <div style='font-size: 13px; color: var(--muted);'>支持裁剪、添加文字、调整尺寸</div>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    st.session_state['video_bytes_for_edit'] = video_bytes
+                                    
+                                    edit_tab1, edit_tab2, edit_tab3 = st.tabs(["📐 裁剪调整", "✏️ 添加文字", "🎨 效果"])
+                                    
+                                    with edit_tab1:
+                                        st.markdown("##### 尺寸调整")
+                                        
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            target_width = st.number_input("宽度 (px)", min_value=100, max_value=1920, value=720, step=10, key="edit_width")
+                                        with col2:
+                                            target_height = st.number_input("高度 (px)", min_value=100, max_value=1920, value=1280, step=10, key="edit_height")
+                                        
+                                        resize_method = st.selectbox("缩放方式", ["保持比例缩放", "拉伸填充", "裁剪居中"], key="resize_method")
+                                        
+                                        st.markdown("##### 裁剪区域")
+                                        st.info("💡 设置裁剪区域（百分比），0-100")
+                                        
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            crop_x = st.slider("X 偏移 (%)", 0, 50, 0, key="crop_x")
+                                            crop_width = st.slider("裁剪宽度 (%)", 50, 100, 100, key="crop_width")
+                                        with col2:
+                                            crop_y = st.slider("Y 偏移 (%)", 0, 50, 0, key="crop_y")
+                                            crop_height = st.slider("裁剪高度 (%)", 50, 100, 100, key="crop_height")
+                                    
+                                    with edit_tab2:
+                                        st.markdown("##### 文字设置")
+                                        
+                                        text_content = st.text_area("文字内容", placeholder="输入要添加的文字...", key="text_content")
+                                        
+                                        col1, col2, col3 = st.columns(3)
+                                        with col1:
+                                            text_size = st.slider("字体大小", 20, 100, 40, key="text_size")
+                                        with col2:
+                                            text_color = st.selectbox("文字颜色", ["白色", "黑色", "红色", "绿色", "蓝色", "黄色"], key="text_color")
+                                        with col3:
+                                            text_position = st.selectbox("位置", ["顶部", "中间", "底部"], key="text_position")
+                                        
+                                        text_bg = st.checkbox("添加文字背景", value=True, key="text_bg")
+                                    
+                                    with edit_tab3:
+                                        st.markdown("##### 视频效果")
+                                        
+                                        brightness = st.slider("亮度", 0.5, 2.0, 1.0, 0.1, key="brightness")
+                                        contrast = st.slider("对比度", 0.5, 2.0, 1.0, 0.1, key="contrast")
+                                        
+                                        rotate_angle = st.selectbox("旋转", ["不旋转", "顺时针90°", "逆时针90°", "180°"], key="rotate")
+                                        
+                                        add_border = st.checkbox("添加边框", key="add_border")
+                                        if add_border:
+                                            border_size = st.slider("边框大小 (px)", 5, 50, 10, key="border_size")
+                                    
+                                    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+                                    
+                                    if st.button("🎬 处理视频", use_container_width=True, type="primary", key="process_video"):
+                                        with st.spinner("正在处理视频，请稍候..."):
+                                            try:
+                                                from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+                                                from moviepy.video.fx import resize, crop, rotate
+                                                import tempfile
+                                                import os
+                                                
+                                                temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                                                temp_input.write(video_bytes)
+                                                temp_input.close()
+                                                
+                                                clip = VideoFileClip(temp_input.name)
+                                                
+                                                if crop_width < 100 or crop_height < 100 or crop_x > 0 or crop_y > 0:
+                                                    w, h = clip.size
+                                                    x1 = int(w * crop_x / 100)
+                                                    y1 = int(h * crop_y / 100)
+                                                    x2 = int(w * crop_width / 100)
+                                                    y2 = int(h * crop_height / 100)
+                                                    clip = clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+                                                
+                                                if resize_method == "保持比例缩放":
+                                                    clip = clip.resize(height=target_height)
+                                                elif resize_method == "拉伸填充":
+                                                    clip = clip.resize((target_width, target_height))
+                                                else:
+                                                    clip = clip.resize((target_width, target_height))
+                                                
+                                                if brightness != 1.0 or contrast != 1.0:
+                                                    clip = clip.fl_image(lambda img: img * brightness)
+                                                
+                                                rotate_map = {"顺时针90°": 90, "逆时针90°": -90, "180°": 180}
+                                                if rotate_angle in rotate_map:
+                                                    from moviepy.video.fx.rotate import rotate
+                                                    clip = rotate(clip, rotate_map[rotate_angle])
+                                                
+                                                clips = [clip]
+                                                
+                                                if text_content:
+                                                    color_map = {"白色": "white", "黑色": "black", "红色": "red", "绿色": "green", "蓝色": "blue", "黄色": "yellow"}
+                                                    txt_clip = TextClip(text_content, fontsize=text_size, color=color_map.get(text_color, "white"), 
+                                                                       bg_color='black' if text_bg else 'transparent', size=clip.size)
+                                                    
+                                                    pos_map = {"顶部": ('center', 50), "中间": 'center', "底部": ('center', clip.h - 50)}
+                                                    txt_clip = txt_clip.set_position(pos_map.get(text_position, 'center')).set_duration(clip.duration)
+                                                    clips.append(txt_clip)
+                                                
+                                                final_clip = CompositeVideoClip(clips)
+                                                
+                                                temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                                                final_clip.write_videofile(temp_output.name, codec='libx264', audio_codec='aac', 
+                                                                          temp_audiofile=tempfile.mktemp(suffix='.m4a'), 
+                                                                          remove_temp=True, fps=24, preset='ultrafast')
+                                                
+                                                with open(temp_output.name, 'rb') as f:
+                                                    edited_video_bytes = f.read()
+                                                
+                                                clip.close()
+                                                final_clip.close()
+                                                os.unlink(temp_input.name)
+                                                os.unlink(temp_output.name)
+                                                
+                                                edited_size_mb = len(edited_video_bytes) / 1024 / 1024
+                                                
+                                                st.success("✅ 视频处理完成！")
+                                                st.download_button(
+                                                    label=f"下载编辑后的视频 · {edited_size_mb:.1f} MB",
+                                                    data=edited_video_bytes,
+                                                    file_name=f"edited_{time.strftime('%Y%m%d_%H%M%S')}.mp4",
+                                                    mime="video/mp4",
+                                                    use_container_width=True
+                                                )
+                                                
+                                                st.video(edited_video_bytes)
+                                                
+                                            except Exception as e:
+                                                st.error(f"❌ 处理失败：{str(e)}")
+                                                st.caption("💡 提示：视频编辑功能需要安装 moviepy 库")
+                                
+                                with st.expander("预览原视频", expanded=False):
+                                    st.video(video_bytes)
+                            else:
+                                st.error(f"❌ 获取视频失败 (HTTP {video_response.status_code})")
+                                st.code(video_url, language="text")
+                        except Exception as e:
+                            st.error(f"❌ 下载失败：{str(e)}")
+                            with st.expander("🔗 查看直链"):
+                                st.code(video_url, language="text")
+                else:
+                    st.warning("⚠️ 未找到视频链接")
+                    with st.expander("🔍 查看调试信息"):
+                        st.json(video_info)
+            
+            elif content_type == 'image' or 'images' in video_info:
+                images = video_info.get('images', [])
+                if images:
+                    st.success(f"🖼️ 找到 {len(images)} 张图片")
+                    
+                    cols_per_row = 3
+                    for i in range(0, len(images), cols_per_row):
+                        cols = st.columns(cols_per_row)
+                        for j, col in enumerate(cols):
+                            img_idx = i + j
+                            if img_idx < len(images):
+                                img_url = images[img_idx]
+                                with col:
+                                    try:
+                                        img_response = requests.get(img_url, timeout=30)
+                                        if img_response.status_code == 200:
+                                            img_bytes = img_response.content
+                                            st.image(img_bytes, use_container_width=True)
+                                            st.download_button(
+                                                label=f"⬇️ 图 {img_idx+1}",
+                                                data=img_bytes,
+                                                file_name=f"douyin_{img_idx+1}_{time.strftime('%H%M%S')}.jpg",
+                                                mime="image/jpeg",
+                                                use_container_width=True,
+                                                key=f"img_{img_idx}"
+                                            )
+                                    except Exception as e:
+                                        st.error(f"❌ 加载失败")
+                    
+                    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+                    
+                    if st.button("📦 批量下载全部", use_container_width=True, type="primary"):
+                        with st.spinner(f"正在打包 {len(images)} 张图片..."):
+                            import zipfile
+                            
+                            zip_buffer = BytesIO()
+                            success_count = 0
+                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                for i, img_url in enumerate(images):
+                                    try:
+                                        img_response = requests.get(img_url, timeout=30)
+                                        if img_response.status_code == 200:
+                                            img_bytes = img_response.content
+                                            zip_file.writestr(f"douyin_{i+1}.jpg", img_bytes)
+                                            success_count += 1
+                                    except:
+                                        pass
+                            
+                            zip_buffer.seek(0)
+                            st.download_button(
+                                label=f"⬇️ 下载压缩包 ({success_count}/{len(images)} 张)",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"douyin_{time.strftime('%Y%m%d_%H%M%S')}.zip",
+                                mime="application/zip",
+                                use_container_width=True
+                            )
+                else:
+                    st.warning("⚠️ 未找到图片")
+            else:
+                st.info("📦 内容类型未知，请查看调试信息")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.error("❌ API返回数据格式异常")
+            with st.expander("查看原始数据"):
+                st.json(data)
+            st.markdown('</div>', unsafe_allow_html=True)
