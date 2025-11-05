@@ -2127,30 +2127,111 @@ elif page == "📱 抖音下载":
         
         if douyin_url != douyin_url_input.strip():
             st.info(f"🔗 已识别链接：{douyin_url}")
+        
         with st.spinner("正在解析视频信息..."):
             try:
-                api_url = "https://zerorust.dev/api/douyin"
+                def parse_douyin_url(url):
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Referer': 'https://www.douyin.com/'
+                    }
+                    
+                    redirect_response = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
+                    final_url = redirect_response.url
+                    
+                    html_response = requests.get(final_url, headers=headers, timeout=15)
+                    html_content = html_response.text
+                    
+                    render_data_match = re.search(r'<script id="RENDER_DATA" type="application/json">([^<]+)</script>', html_content)
+                    if not render_data_match:
+                        return None
+                    
+                    import urllib.parse
+                    encoded_data = render_data_match.group(1)
+                    decoded_data = urllib.parse.unquote(encoded_data)
+                    data = json.loads(decoded_data)
+                    
+                    aweme_detail = None
+                    if '23' in data and 'aweme' in data['23'] and 'detail' in data['23']['aweme']:
+                        aweme_detail = data['23']['aweme']['detail']
+                    elif 'aweme' in data and 'detail' in data['aweme']:
+                        aweme_detail = data['aweme']['detail']
+                    
+                    if not aweme_detail:
+                        return None
+                    
+                    result = {
+                        'code': 200,
+                        'message': 'success',
+                        'data': {
+                            'awemeId': aweme_detail.get('awemeId', ''),
+                            'desc': aweme_detail.get('desc', ''),
+                            'create_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(aweme_detail.get('createTime', 0))),
+                            'author_name': aweme_detail.get('authorInfo', {}).get('nickname', ''),
+                            'author': aweme_detail.get('authorInfo', {}).get('nickname', ''),
+                            'nickname': aweme_detail.get('authorInfo', {}).get('nickname', ''),
+                            'cover': '',
+                            'comment_count': aweme_detail.get('stats', {}).get('commentCount', 0),
+                            'like_count': aweme_detail.get('stats', {}).get('diggCount', 0),
+                            'digg_count': aweme_detail.get('stats', {}).get('diggCount', 0),
+                            'share_count': aweme_detail.get('stats', {}).get('shareCount', 0),
+                            'collect_count': aweme_detail.get('stats', {}).get('collectCount', 0)
+                        }
+                    }
+                    
+                    images = aweme_detail.get('images', [])
+                    if images:
+                        result['data']['type'] = 'image'
+                        result['data']['images'] = []
+                        for img in images:
+                            url_list = img.get('urlList', [])
+                            if url_list:
+                                result['data']['images'].append(url_list[0])
+                        if result['data']['images']:
+                            result['data']['cover'] = result['data']['images'][0]
+                    else:
+                        result['data']['type'] = 'video'
+                        
+                        video_url = None
+                        play_addr = aweme_detail.get('video', {}).get('playAddr', [])
+                        if play_addr and len(play_addr) > 0:
+                            video_url = play_addr[0].get('src', '')
+                        
+                        if not video_url:
+                            play_api = aweme_detail.get('video', {}).get('playApi', '')
+                            if play_api:
+                                video_url = play_api
+                        
+                        if video_url:
+                            video_url = video_url.replace('playwm', 'play')
+                            result['data']['video_url'] = video_url
+                        
+                        cover_list = aweme_detail.get('video', {}).get('cover', {}).get('urlList', [])
+                        if cover_list:
+                            result['data']['cover'] = cover_list[0]
+                    
+                    return result
                 
-                response = requests.post(
-                    api_url,
-                    json={"url": douyin_url},
-                    headers={"Content-Type": "application/json"},
-                    timeout=30
-                )
+                data = parse_douyin_url(douyin_url)
                 
-                if response.status_code == 200:
-                    data = response.json()
+                if data:
                     st.session_state['douyin_data'] = data
                     st.success("✅ 解析成功！")
                 else:
-                    st.error(f"❌ 解析失败：HTTP {response.status_code}")
-                    st.error(f"错误详情：{response.text}")
+                    st.error("❌ 无法解析视频信息，请检查链接是否正确")
+            
             except requests.exceptions.Timeout:
                 st.error("❌ 请求超时，请稍后重试")
             except requests.exceptions.RequestException as e:
                 st.error(f"❌ 网络请求失败：{str(e)}")
             except Exception as e:
                 st.error(f"❌ 解析出错：{str(e)}")
+                import traceback
+                with st.expander("查看详细错误"):
+                    st.code(traceback.format_exc())
     
     if 'douyin_data' in st.session_state:
         data = st.session_state['douyin_data']
