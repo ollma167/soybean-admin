@@ -2190,33 +2190,47 @@ elif page == "📱 抖音下载":
                     </div>
                 """, unsafe_allow_html=True)
             
-            stats_mapping = [
-                ('comment_count', 'comment', 'commentCount', '评论'),
-                ('like_count', 'digg_count', 'like', 'likeCount', 'diggCount', '点赞'),
-                ('share_count', 'share', 'shareCount', '分享'),
-                ('collect_count', 'collect', 'collectCount', '收藏'),
-                ('play_count', 'play', 'playCount', 'view_count', '播放'),
-                ('forward_count', 'forward', 'forwardCount', '转发')
+            primary_stats_mapping = [
+                ('comment_count', 'comment', 'commentCount', '评论', '💬'),
+                ('like_count', 'digg_count', 'like', 'likeCount', 'diggCount', '点赞', '❤️'),
+                ('share_count', 'share', 'shareCount', '分享', '📤'),
+                ('collect_count', 'collect', 'collectCount', '收藏', '⭐')
             ]
             
-            stats_list = []
-            for fields in stats_mapping:
-                *field_names, label = fields
+            secondary_stats_mapping = [
+                ('play_count', 'play', 'playCount', 'view_count', '播放', '▶️'),
+                ('forward_count', 'forward', 'forwardCount', '转发', '🔄')
+            ]
+            
+            primary_stats = []
+            for fields in primary_stats_mapping:
+                *field_names, label, icon = fields
                 value = None
                 for field in field_names:
                     if field in video_info and video_info[field]:
                         value = video_info[field]
                         break
                 if value and value > 0:
-                    stats_list.append((label, value))
+                    primary_stats.append((label, value, icon))
             
-            if stats_list:
+            secondary_stats = []
+            for fields in secondary_stats_mapping:
+                *field_names, label, icon = fields
+                value = None
+                for field in field_names:
+                    if field in video_info and video_info[field]:
+                        value = video_info[field]
+                        break
+                if value and value > 0:
+                    secondary_stats.append((label, value, icon))
+            
+            if primary_stats:
                 st.markdown("""
-                    <div style='padding: 16px 0;'>
-                        <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px;'>
+                    <div style='padding: 20px 0 16px 0;'>
+                        <div style='display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;'>
                 """, unsafe_allow_html=True)
                 
-                for label, count in stats_list:
+                for label, count, icon in primary_stats:
                     formatted_count = count
                     if count >= 10000:
                         formatted_count = f"{count/10000:.1f}w"
@@ -2224,14 +2238,40 @@ elif page == "📱 抖音下载":
                         formatted_count = f"{count/1000:.1f}k"
                     
                     st.markdown(f"""
-                        <div style='text-align: center; padding: 16px 12px; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.05) 100%); 
-                                    border-radius: 12px; border: 1px solid rgba(16,163,127,.08); transition: all 0.2s;'>
-                            <div style='color: var(--accent); font-weight: 700; font-size: 24px; margin-bottom: 4px; letter-spacing: -0.5px;'>{formatted_count}</div>
-                            <div style='color: var(--muted); font-size: 13px;'>{label}</div>
+                        <div style='text-align: center; padding: 20px 12px; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.05) 100%); 
+                                    border-radius: 14px; border: 1px solid rgba(16,163,127,.12); transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,163,127,0.08);'>
+                            <div style='font-size: 22px; margin-bottom: 6px; opacity: 0.9;'>{icon}</div>
+                            <div style='color: var(--accent); font-weight: 700; font-size: 26px; margin-bottom: 6px; letter-spacing: -0.5px;'>{formatted_count}</div>
+                            <div style='color: var(--muted); font-size: 13px; font-weight: 500;'>{label}</div>
                         </div>
                     """, unsafe_allow_html=True)
                 
-                st.markdown("</div></div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                if secondary_stats:
+                    st.markdown("""
+                        <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;'>
+                    """, unsafe_allow_html=True)
+                    
+                    for label, count, icon in secondary_stats:
+                        formatted_count = count
+                        if count >= 10000:
+                            formatted_count = f"{count/10000:.1f}w"
+                        elif count >= 1000:
+                            formatted_count = f"{count/1000:.1f}k"
+                        
+                        st.markdown(f"""
+                            <div style='text-align: center; padding: 14px 10px; background: linear-gradient(135deg, rgba(16,163,127,0.04) 0%, rgba(16,163,127,0.02) 100%); 
+                                        border-radius: 10px; border: 1px solid rgba(16,163,127,.08); transition: all 0.2s;'>
+                                <div style='font-size: 18px; margin-bottom: 4px; opacity: 0.85;'>{icon}</div>
+                                <div style='color: var(--accent); font-weight: 600; font-size: 20px; margin-bottom: 4px; letter-spacing: -0.3px;'>{formatted_count}</div>
+                                <div style='color: var(--muted); font-size: 12px; font-weight: 500;'>{label}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
             
