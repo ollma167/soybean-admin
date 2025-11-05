@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>抖音统计布局测试 - Flexbox</title>
+    <style>
+      :root {
+        --accent-weak: #e6faf2;
+        --accent: #10a37f;
+        --text: #111318;
+        --muted: #61646b;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding: 20px;
+        background: #f7f7f8;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>抖音统计数据布局示例（Flexbox版本）</h2>
+
+      <div style="margin: 16px 0 20px 0; color: var(--text); font-size: 15px; line-height: 1.7; font-weight: 500">
+        #解压玩具 #感官石 #白玉菩提
+      </div>
+
+      <div
+        style="
+          margin: 20px 0;
+          padding: 16px;
+          background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16, 163, 127, 0.03) 100%);
+          border-radius: 12px;
+          border: 1px solid rgba(16, 163, 127, 0.15);
+        "
+      >
+        <!-- 作者和统计数据行 -->
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(16, 163, 127, 0.1);
+          "
+        >
+          <div style="flex: 0 0 180px; color: var(--text); font-size: 14px; font-weight: 500">
+            <span style="margin-right: 6px">👤</span>
+            小y的文玩日记
+          </div>
+
+          <div style="flex: 1; text-align: center">
+            <div style="font-size: 20px; margin-bottom: 4px">💬</div>
+            <div style="color: var(--accent); font-weight: 700; font-size: 18px; margin-bottom: 2px">180</div>
+            <div style="color: var(--muted); font-size: 12px">评论</div>
+          </div>
+
+          <div style="flex: 1; text-align: center">
+            <div style="font-size: 20px; margin-bottom: 4px">❤️</div>
+            <div style="color: var(--accent); font-weight: 700; font-size: 18px; margin-bottom: 2px">1.7w</div>
+            <div style="color: var(--muted); font-size: 12px">点赞</div>
+          </div>
+
+          <div style="flex: 1; text-align: center">
+            <div style="font-size: 20px; margin-bottom: 4px">📤</div>
+            <div style="color: var(--accent); font-weight: 700; font-size: 18px; margin-bottom: 2px">1.9k</div>
+            <div style="color: var(--muted); font-size: 12px">分享</div>
+          </div>
+
+          <div style="flex: 1; text-align: center">
+            <div style="font-size: 20px; margin-bottom: 4px">⭐</div>
+            <div style="color: var(--accent); font-weight: 700; font-size: 18px; margin-bottom: 2px">2.9k</div>
+            <div style="color: var(--muted); font-size: 12px">收藏</div>
+          </div>
+        </div>
+
+        <!-- 时间行 -->
+        <div style="display: flex; align-items: center">
+          <div style="flex: 0 0 180px; color: var(--muted); font-size: 13px">
+            <span style="margin-right: 6px">📅</span>
+            2025-09-13 17:23:55
+          </div>
+          <div style="flex: 1"></div>
+        </div>
+      </div>
+
+      <p style="color: var(--muted); font-size: 14px; margin-top: 20px">
+        ✅ 布局说明：使用 Flexbox 实现横向排列，作者信息在左侧，四个统计数据在右侧横向排列
+      </p>
+    </div>
+  </body>
+</html>

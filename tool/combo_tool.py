@@ -2205,59 +2205,43 @@ elif page == "📱 抖音下载":
             while len(primary_stats) < 4:
                 primary_stats.append(('', '0', ''))
             
-            table_html = """
-                <table style='width: 100%; border-collapse: collapse; margin: 20px 0; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.03) 100%); border-radius: 12px; overflow: hidden; border: 1px solid rgba(16,163,127,.15);'>
-                    <thead>
-                        <tr style='background: rgba(16,163,127,0.08); border-bottom: 2px solid rgba(16,163,127,.2);'>
-                            <th style='padding: 14px 16px; text-align: left; color: var(--text); font-weight: 600; font-size: 14px; width: 35%;'>信息</th>
+            info_html = f"""
+                <div style='margin: 20px 0; padding: 16px; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.03) 100%); 
+                            border-radius: 12px; border: 1px solid rgba(16,163,127,.15);'>
             """
             
-            for label, formatted_count, icon in primary_stats:
-                table_html += f"""
-                    <th style='padding: 14px 10px; text-align: center; color: var(--text); font-weight: 600; font-size: 14px; width: 16.25%;'>
-                        <div style='font-size: 20px; margin-bottom: 2px;'>{icon}</div>
-                    </th>
-                """
-            
-            table_html += "</tr></thead><tbody>"
-            
             if author_name:
-                table_html += f"""
-                    <tr style='border-bottom: 1px solid rgba(16,163,127,.1);'>
-                        <td style='padding: 14px 16px; color: var(--text); font-size: 14px;'>
-                            <span style='color: var(--muted); margin-right: 6px;'>👤</span>{author_name}
-                        </td>
+                info_html += f"""
+                    <div style='display: flex; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(16,163,127,.1);'>
+                        <div style='flex: 0 0 180px; color: var(--text); font-size: 14px; font-weight: 500;'>
+                            <span style='margin-right: 6px;'>👤</span>{author_name}
+                        </div>
                 """
                 
                 for label, formatted_count, icon in primary_stats:
-                    table_html += f"""
-                        <td style='padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px;'>
-                            {formatted_count}
-                        </td>
+                    info_html += f"""
+                        <div style='flex: 1; text-align: center;'>
+                            <div style='font-size: 20px; margin-bottom: 4px;'>{icon}</div>
+                            <div style='color: var(--accent); font-weight: 700; font-size: 18px; margin-bottom: 2px;'>{formatted_count}</div>
+                            <div style='color: var(--muted); font-size: 12px;'>{label}</div>
+                        </div>
                     """
                 
-                table_html += "</tr>"
+                info_html += "</div>"
             
             if create_time:
-                table_html += f"""
-                    <tr>
-                        <td style='padding: 14px 16px; color: var(--muted); font-size: 13px;'>
+                info_html += f"""
+                    <div style='display: flex; align-items: center;'>
+                        <div style='flex: 0 0 180px; color: var(--muted); font-size: 13px;'>
                             <span style='margin-right: 6px;'>📅</span>{create_time}
-                        </td>
+                        </div>
+                        <div style='flex: 1;'></div>
+                    </div>
                 """
-                
-                for label, formatted_count, icon in primary_stats:
-                    table_html += f"""
-                        <td style='padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500;'>
-                            {label}
-                        </td>
-                    """
-                
-                table_html += "</tr>"
             
-            table_html += "</tbody></table>"
+            info_html += "</div>"
             
-            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown(info_html, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
             
