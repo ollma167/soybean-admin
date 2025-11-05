@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>抖音统计布局测试</title>
+    <style>
+      :root {
+        --accent-weak: #e6faf2;
+        --accent: #10a37f;
+        --text: #111318;
+        --muted: #61646b;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding: 20px;
+        background: #f7f7f8;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>抖音统计数据布局示例</h2>
+
+      <div style="margin: 16px 0 20px 0; color: var(--text); font-size: 15px; line-height: 1.7; font-weight: 500">
+        #解压玩具 #感官石 #白玉菩提
+      </div>
+
+      <table
+        style="
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+          background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16, 163, 127, 0.03) 100%);
+          border-radius: 12px;
+          overflow: hidden;
+          border: 1px solid rgba(16, 163, 127, 0.15);
+        "
+      >
+        <thead>
+          <tr style="background: rgba(16, 163, 127, 0.08); border-bottom: 2px solid rgba(16, 163, 127, 0.2)">
+            <th
+              style="
+                padding: 14px 16px;
+                text-align: left;
+                color: var(--text);
+                font-weight: 600;
+                font-size: 14px;
+                width: 35%;
+              "
+            >
+              信息
+            </th>
+            <th
+              style="
+                padding: 14px 10px;
+                text-align: center;
+                color: var(--text);
+                font-weight: 600;
+                font-size: 14px;
+                width: 16.25%;
+              "
+            >
+              <div style="font-size: 20px; margin-bottom: 2px">💬</div>
+            </th>
+            <th
+              style="
+                padding: 14px 10px;
+                text-align: center;
+                color: var(--text);
+                font-weight: 600;
+                font-size: 14px;
+                width: 16.25%;
+              "
+            >
+              <div style="font-size: 20px; margin-bottom: 2px">❤️</div>
+            </th>
+            <th
+              style="
+                padding: 14px 10px;
+                text-align: center;
+                color: var(--text);
+                font-weight: 600;
+                font-size: 14px;
+                width: 16.25%;
+              "
+            >
+              <div style="font-size: 20px; margin-bottom: 2px">📤</div>
+            </th>
+            <th
+              style="
+                padding: 14px 10px;
+                text-align: center;
+                color: var(--text);
+                font-weight: 600;
+                font-size: 14px;
+                width: 16.25%;
+              "
+            >
+              <div style="font-size: 20px; margin-bottom: 2px">⭐</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(16, 163, 127, 0.1)">
+            <td style="padding: 14px 16px; color: var(--text); font-size: 14px">
+              <span style="color: var(--muted); margin-right: 6px">👤</span>
+              小y的文玩日记
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px">
+              180
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px">
+              1.7w
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px">
+              1.9k
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px">
+              2.9k
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 16px; color: var(--muted); font-size: 13px">
+              <span style="margin-right: 6px">📅</span>
+              2025-09-13 17:23:55
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500">
+              评论
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500">
+              点赞
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500">
+              分享
+            </td>
+            <td style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500">
+              收藏
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="color: var(--muted); font-size: 14px; margin-top: 20px">
+        ✅ 布局说明：现在统计数据是横向排列的，每一列对应一个统计项（评论、点赞、分享、收藏）
+      </p>
+    </div>
+  </body>
+</html>

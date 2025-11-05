@@ -2205,57 +2205,59 @@ elif page == "📱 抖音下载":
             while len(primary_stats) < 4:
                 primary_stats.append(('', '0', ''))
             
-            st.markdown("""
+            table_html = """
                 <table style='width: 100%; border-collapse: collapse; margin: 20px 0; background: linear-gradient(135deg, var(--accent-weak) 0%, rgba(16,163,127,0.03) 100%); border-radius: 12px; overflow: hidden; border: 1px solid rgba(16,163,127,.15);'>
                     <thead>
                         <tr style='background: rgba(16,163,127,0.08); border-bottom: 2px solid rgba(16,163,127,.2);'>
                             <th style='padding: 14px 16px; text-align: left; color: var(--text); font-weight: 600; font-size: 14px; width: 35%;'>信息</th>
-            """, unsafe_allow_html=True)
+            """
             
             for label, formatted_count, icon in primary_stats:
-                st.markdown(f"""
+                table_html += f"""
                     <th style='padding: 14px 10px; text-align: center; color: var(--text); font-weight: 600; font-size: 14px; width: 16.25%;'>
                         <div style='font-size: 20px; margin-bottom: 2px;'>{icon}</div>
                     </th>
-                """, unsafe_allow_html=True)
+                """
             
-            st.markdown("</tr></thead><tbody>", unsafe_allow_html=True)
+            table_html += "</tr></thead><tbody>"
             
             if author_name:
-                st.markdown(f"""
+                table_html += f"""
                     <tr style='border-bottom: 1px solid rgba(16,163,127,.1);'>
                         <td style='padding: 14px 16px; color: var(--text); font-size: 14px;'>
                             <span style='color: var(--muted); margin-right: 6px;'>👤</span>{author_name}
                         </td>
-                """, unsafe_allow_html=True)
+                """
                 
                 for label, formatted_count, icon in primary_stats:
-                    st.markdown(f"""
+                    table_html += f"""
                         <td style='padding: 14px 10px; text-align: center; color: var(--accent); font-weight: 700; font-size: 18px;'>
                             {formatted_count}
                         </td>
-                    """, unsafe_allow_html=True)
+                    """
                 
-                st.markdown("</tr>", unsafe_allow_html=True)
+                table_html += "</tr>"
             
             if create_time:
-                st.markdown(f"""
+                table_html += f"""
                     <tr>
                         <td style='padding: 14px 16px; color: var(--muted); font-size: 13px;'>
                             <span style='margin-right: 6px;'>📅</span>{create_time}
                         </td>
-                """, unsafe_allow_html=True)
+                """
                 
                 for label, formatted_count, icon in primary_stats:
-                    st.markdown(f"""
+                    table_html += f"""
                         <td style='padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 500;'>
                             {label}
                         </td>
-                    """, unsafe_allow_html=True)
+                    """
                 
-                st.markdown("</tr>", unsafe_allow_html=True)
+                table_html += "</tr>"
             
-            st.markdown("</tbody></table>", unsafe_allow_html=True)
+            table_html += "</tbody></table>"
+            
+            st.markdown(table_html, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
             
