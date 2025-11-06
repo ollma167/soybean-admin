@@ -2195,21 +2195,95 @@ elif page == "📱 抖音下载":
                     else:
                         result['data']['type'] = 'video'
                         
+                        video_info = aweme_detail.get('video', {})
+                        # 保存原始视频信息用于调试
+                        result['_raw_video_info'] = video_info
                         video_url = None
-                        play_addr = aweme_detail.get('video', {}).get('playAddr', [])
-                        if play_addr and len(play_addr) > 0:
-                            video_url = play_addr[0].get('src', '')
                         
+                        # 尝试多个字段路径获取视频URL
+                        # 方法1: playAddr数组
+                        play_addr = video_info.get('playAddr', [])
+                        if isinstance(play_addr, list) and len(play_addr) > 0:
+                            if isinstance(play_addr[0], dict):
+                                video_url = play_addr[0].get('src', '')
+                            elif isinstance(play_addr[0], str):
+                                video_url = play_addr[0]
+                        
+                        # 方法2: playApi字段
                         if not video_url:
-                            play_api = aweme_detail.get('video', {}).get('playApi', '')
+                            play_api = video_info.get('playApi', '')
                             if play_api:
                                 video_url = play_api
                         
+                        # 方法3: bitRateList中选择最高码率
+                        if not video_url:
+                            bit_rate_list = video_info.get('bitRateList', [])
+                            if bit_rate_list:
+                                best_quality = None
+                                best_bitrate = 0
+                                for rate_item in bit_rate_list:
+                                    bitrate = rate_item.get('bitRate', 0) or rate_item.get('bitrate', 0)
+                                    if bitrate > best_bitrate:
+                                        # 尝试从多个字段获取URL
+                                        url_candidate = None
+                                        if rate_item.get('playApi'):
+                                            url_candidate = rate_item['playApi']
+                                        elif rate_item.get('playAddr'):
+                                            play_addr_item = rate_item['playAddr']
+                                            if isinstance(play_addr_item, list) and play_addr_item:
+                                                url_candidate = play_addr_item[0].get('src', '') if isinstance(play_addr_item[0], dict) else play_addr_item[0]
+                                            elif isinstance(play_addr_item, dict):
+                                                url_candidate = play_addr_item.get('src', '')
+                                        
+                                        if url_candidate:
+                                            best_quality = url_candidate
+                                            best_bitrate = bitrate
+                                
+                                if best_quality:
+                                    video_url = best_quality
+                        
+                        # 方法4: playAddrH265 或 playAddrH264
+                        if not video_url:
+                            for field in ['playAddrH265', 'playAddrH264', 'playAddrLowbr']:
+                                play_addr_h = video_info.get(field, [])
+                                if isinstance(play_addr_h, list) and play_addr_h:
+                                    if isinstance(play_addr_h[0], dict):
+                                        video_url = play_addr_h[0].get('src', '')
+                                    elif isinstance(play_addr_h[0], str):
+                                        video_url = play_addr_h[0]
+                                    if video_url:
+                                        break
+                        
+                        # 方法5: 直接的src或url字段
+                        if not video_url:
+                            video_url = video_info.get('src', '') or video_info.get('url', '')
+                        
+                        # 方法6: downloadAddr
+                        if not video_url:
+                            download_addr = video_info.get('downloadAddr', {})
+                            if isinstance(download_addr, dict):
+                                url_list = download_addr.get('urlList', [])
+                                if url_list:
+                                    video_url = url_list[0]
+                            elif isinstance(download_addr, str):
+                                video_url = download_addr
+                        
+                        # 清理和格式化视频URL
                         if video_url:
-                            video_url = video_url.replace('playwm', 'play')
+                            # 去除水印标记
+                            video_url = video_url.replace('playwm', 'play').replace('\\u002F', '/')
+                            # 确保是完整URL
+                            if not video_url.startswith('http'):
+                                video_url = 'https:' + video_url if video_url.startswith('//') else 'https://' + video_url
                             result['data']['video_url'] = video_url
                         
-                        cover_list = aweme_detail.get('video', {}).get('cover', {}).get('urlList', [])
+                        # 获取封面
+                        cover_list = video_info.get('cover', {}).get('urlList', [])
+                        if not cover_list:
+                            cover_list = video_info.get('dynamicCover', {}).get('urlList', [])
+                        if not cover_list:
+                            cover_list = video_info.get('originCover', {}).get('urlList', [])
+                        
                         if cover_list:
                             result['data']['cover'] = cover_list[0]
                     
@@ -2220,6 +2294,18 @@ elif page == "📱 抖音下载":
                 if data:
                     st.session_state['douyin_data'] = data
                     st.success("✅ 解析成功！")
+                    
+                    # 检查视频URL是否获取成功
+                    if data.get('data', {}).get('type') == 'video':
+                        video_url = data.get('data', {}).get('video_url')
+                        if not video_url:
+                            st.warning("⚠️ 视频信息已解析，但未找到视频URL")
+                            with st.expander("🔍 查看视频字段结构（调试用）"):
+                                video_info = data.get('_raw_video_info', {})
+                                if video_info:
+                                    st.json(video_info)
+                                else:
+                                    st.info("无原始视频信息")
                 else:
                     st.error("❌ 无法解析视频信息，请检查链接是否正确")
             

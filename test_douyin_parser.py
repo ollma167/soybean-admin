@@ -104,22 +104,72 @@ def parse_douyin_url(url):
     else:
         result['data']['type'] = 'video'
         
+        video_info = aweme_detail.get('video', {})
         video_url = None
-        play_addr = aweme_detail.get('video', {}).get('playAddr', [])
-        if play_addr and len(play_addr) > 0:
-            video_url = play_addr[0].get('src', '')
         
+        print(f"📦 视频信息字段: {list(video_info.keys())}")
+        
+        # 尝试多个字段路径
+        # 方法1: playAddr
+        play_addr = video_info.get('playAddr', [])
+        if isinstance(play_addr, list) and len(play_addr) > 0:
+            if isinstance(play_addr[0], dict):
+                video_url = play_addr[0].get('src', '')
+            elif isinstance(play_addr[0], str):
+                video_url = play_addr[0]
+            if video_url:
+                print(f"✅ 从 playAddr 获取: {video_url[:60]}...")
+        
+        # 方法2: playApi
         if not video_url:
-            play_api = aweme_detail.get('video', {}).get('playApi', '')
+            play_api = video_info.get('playApi', '')
             if play_api:
                 video_url = play_api
+                print(f"✅ 从 playApi 获取: {video_url[:60]}...")
         
+        # 方法3: bitRateList
+        if not video_url:
+            bit_rate_list = video_info.get('bitRateList', [])
+            if bit_rate_list:
+                print(f"🔍 检查 bitRateList ({len(bit_rate_list)} 个选项)")
+                for i, rate_item in enumerate(bit_rate_list):
+                    print(f"   选项 {i+1}: bitRate={rate_item.get('bitRate', rate_item.get('bitrate', 0))}, 字段={list(rate_item.keys())}")
+                
+                best_quality = None
+                best_bitrate = 0
+                for rate_item in bit_rate_list:
+                    bitrate = rate_item.get('bitRate', 0) or rate_item.get('bitrate', 0)
+                    if bitrate > best_bitrate:
+                        url_candidate = None
+                        if rate_item.get('playApi'):
+                            url_candidate = rate_item['playApi']
+                        elif rate_item.get('playAddr'):
+                            play_addr_item = rate_item['playAddr']
+                            if isinstance(play_addr_item, list) and play_addr_item:
+                                url_candidate = play_addr_item[0].get('src', '') if isinstance(play_addr_item[0], dict) else play_addr_item[0]
+                            elif isinstance(play_addr_item, dict):
+                                url_candidate = play_addr_item.get('src', '')
+                        
+                        if url_candidate:
+                            best_quality = url_candidate
+                            best_bitrate = bitrate
+                
+                if best_quality:
+                    video_url = best_quality
+                    print(f"✅ 从 bitRateList 获取 (码率 {best_bitrate}): {video_url[:60]}...")
+        
+        # 清理URL
         if video_url:
-            video_url = video_url.replace('playwm', 'play')
+            video_url = video_url.replace('playwm', 'play').replace('\\u002F', '/')
+            if not video_url.startswith('http'):
+                video_url = 'https:' + video_url if video_url.startswith('//') else 'https://' + video_url
             result['data']['video_url'] = video_url
-            print(f"🎬 视频: {video_url[:60]}...")
+            print(f"🎬 最终视频URL: {video_url[:80]}...")
+        else:
+            print("❌ 未能提取到视频URL")
         
-        cover_list = aweme_detail.get('video', {}).get('cover', {}).get('urlList', [])
+        # 封面
+        cover_list = video_info.get('cover', {}).get('urlList', [])
         if cover_list:
             result['data']['cover'] = cover_list[0]
     
