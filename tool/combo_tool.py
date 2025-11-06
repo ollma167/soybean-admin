@@ -4,12 +4,363 @@ import json
 import re
 import copy
 import time
+import os
+import random
+import urllib.parse
 from io import BytesIO
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from collections import Counter
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
+
+
+# 抖音下载配置 - 借鉴 TypeScript 实现
+def resolve_env_number(key: str, fallback: int) -> int:
+    """解析环境变量数字值"""
+    try:
+        value = os.environ.get(key)
+        if value is not None:
+            parsed = int(value)
+            return parsed if parsed > 0 else fallback
+        return fallback
+    except (ValueError, TypeError):
+        return fallback
+
+def resolve_env_boolean(key: str, fallback: bool) -> bool:
+    """解析环境变量布尔值"""
+    try:
+        value = os.environ.get(key)
+        if value is None:
+            return fallback
+        normalized = value.strip().lower()
+        if normalized in ('false', '0'):
+            return False
+        if normalized in ('true', '1'):
+            return True
+        return fallback
+    except (ValueError, TypeError, AttributeError):
+        return fallback
+
+# 配置常量
+DOUYIN_REQUEST_TIMEOUT = resolve_env_number('DOUYIN_REQUEST_TIMEOUT', 30000)  # 30秒
+DOUYIN_MAX_RETRIES = max(0, resolve_env_number('DOUYIN_MAX_RETRIES', 3))
+DOUYIN_RETRY_DELAY_MS = resolve_env_number('DOUYIN_RETRY_DELAY', 1000)
+
+
+def sleep_async(ms: int):
+    """异步等待"""
+    time.sleep(ms / 1000.0)
+
+
+def generate_fallback_urls(original_url: str) -> List[str]:
+    """生成备用 CDN URL - 借鉴 TypeScript 实现"""
+    fallback_urls = []
+    
+    try:
+        parsed = urllib.parse.urlparse(original_url)
+        
+        # 常见的抖音 CDN 域名
+        cdn_domains = [
+            'aweme.snssdk.com',
+            'v5-hl-zenl-ov.zjcdn.com',
+            'v3-hl-zenl-ov.zjcdn.com', 
+            'v6-hl-zenl-ov.zjcdn.com',
+            'v1-hl-zenl-ov.zjcdn.com',
+            'v9-hl-zenl-ov.zjcdn.com',
+            'p3-sign.douyinpic.com',
+            'p1-sign.douyinpic.com',
+            'p9-sign.douyinpic.com'
+        ]
+        
+        # 生成不同 CDN 的备用 URL
+        for domain in cdn_domains:
+            if parsed.netloc != domain:
+                fallback = urllib.parse.urlparse(original_url)
+                fallback = fallback._replace(netloc=domain)
+                fallback_urls.append(fallback.geturl())
+        
+        # 尝试不同的协议
+        if parsed.scheme == 'https':
+            http_fallback = urllib.parse.urlparse(original_url)
+            http_fallback = http_fallback._replace(scheme='http')
+            fallback_urls.append(http_fallback.geturl())
+        
+        # 尝试不同的路径参数
+        query_params = urllib.parse.parse_qs(parsed.query)
+        if 'line' not in query_params:
+            for line in range(4):  # line=0,1,2,3
+                line_fallback = urllib.parse.urlparse(original_url)
+                new_query = query_params.copy()
+                new_query['line'] = str(line)
+                line_fallback = line_fallback._replace(
+                    query=urllib.parse.urlencode(new_query, doseq=True)
+                )
+                fallback_urls.append(line_fallback.geturl())
+        
+    except Exception as e:
+        st.warning(f"生成备用 URL 失败: {e}")
+    
+    return fallback_urls
+
+
+async def try_multiple_video_urls(urls: List[str]) -> Optional[str]:
+    """尝试多个视频 URL 直到找到一个可用的 - 借鉴 TypeScript 实现"""
+    if not urls:
+        return None
+    
+    st.info(f"🔄 尝试 {len(urls)} 个视频 URL")
+    
+    # 合并原始 URL 和备用 URL
+    all_urls = []
+    for url in urls:
+        all_urls.append(url)
+        # 为每个原始 URL 生成备用 URL
+        fallback_urls = generate_fallback_urls(url)
+        all_urls.extend(fallback_urls)
+    
+    # 去重
+    unique_urls = list(dict.fromkeys(all_urls))  # 保持顺序的去重
+    st.info(f"📡 总共尝试 {len(unique_urls)} 个 URL（包含备用）")
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+        'Accept': 'video/mp4,video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+        'Accept-Language': 'zh-CN,zh;q=0.8',
+        'Referer': 'https://www.douyin.com/',
+        'Connection': 'keep-alive'
+    }
+    
+    for i, url in enumerate(unique_urls):
+        try:
+            st.write(f"🔍 尝试 URL {i + 1}/{len(unique_urls)}")
+            
+            # 使用 HEAD 请求预先检测 URL 可用性
+            head_response = requests.head(
+                url, 
+                headers=headers, 
+                timeout=8  # 8秒超时用于HEAD请求
+            )
+            
+            if head_response.ok:
+                content_type = head_response.headers.get('content-type', '')
+                content_length = head_response.headers.get('content-length', '0')
+                
+                # 检查是否为视频或具有合理的内容长度
+                if (content_type and 'video' in content_type.lower()) or \
+                   (content_length.isdigit() and int(content_length) > 10000) or \
+                   '.mp4' in url or '/play/' in url:
+                    st.success(f"✅ URL {i + 1} 可用 ({content_type or 'unknown'}, {content_length or 'unknown'} bytes)")
+                    return url
+            
+        except requests.exceptions.RequestException as e:
+            st.warning(f"⚠️ URL {i + 1} 不可用: {str(e)}")
+    
+    st.error("❌ 所有视频 URL 都不可用")
+    return None
+
+
+def requests_with_retry(url: str, headers: Dict[str, str] = None, timeout: int = None, max_retries: int = None) -> requests.Response:
+    """带重试机制的请求函数 - 借鉴 TypeScript 实现"""
+    if headers is None:
+        # 使用默认的请求头，这些头信息对抖音CDN是必需的
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+            'Accept': 'video/mp4,video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+            'Accept-Language': 'zh-CN,zh;q=0.8',
+            'Referer': 'https://www.douyin.com/',
+            'Connection': 'keep-alive'
+        }
+    if timeout is None:
+        timeout = DOUYIN_REQUEST_TIMEOUT // 1000  # 转换为秒
+    if max_retries is None:
+        max_retries = DOUYIN_MAX_RETRIES
+    
+    last_error = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.get(url, headers=headers, timeout=timeout)
+            if response.ok:
+                return response
+            else:
+                raise requests.exceptions.HTTPError(f"HTTP {response.status_code}: {response.reason}")
+                
+        except requests.exceptions.RequestException as e:
+            last_error = e
+            
+            # 如果是最后一次尝试，直接抛出异常
+            if attempt == max_retries:
+                break
+            
+            # 记录重试尝试
+            st.warning(f"🔄 请求失败 (尝试 {attempt + 1}/{max_retries + 1}): {str(e)}")
+            
+            # 指数退避 + 随机抖动
+            base_delay = DOUYIN_RETRY_DELAY_MS * (2 ** attempt)
+            jitter = random.uniform(0, 0.3 * base_delay)  # 30% 抖动
+            delay = base_delay + jitter
+            
+            st.info(f"⏱️ 等待 {delay/1000:.1f} 秒后重试...")
+            sleep_async(int(delay))
+    
+    raise last_error or Exception("Max retries exceeded")
+
+
+def parse_douyin_url_method2(url: str) -> Optional[Dict[str, Any]]:
+    """
+    第二解析线路 - 使用抖音移动端API
+    参考: https://github.com/pwh-pwh/douyinVd
+    """
+    try:
+        # 移动端User-Agent
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Referer': 'https://www.douyin.com/',
+        }
+        
+        # 第一步：获取重定向后的URL
+        response = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
+        final_url = response.url
+        
+        # 从URL中提取aweme_id或video_id
+        aweme_id = None
+        import re
+        
+        # 尝试多种模式匹配ID
+        patterns = [
+            r'/video/(\d+)',
+            r'modal_id=(\d+)',
+            r'aweme_id=(\d+)',
+            r'/(\d{19})',  # 19位数字ID
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, final_url)
+            if match:
+                aweme_id = match.group(1)
+                break
+        
+        if not aweme_id:
+            st.warning("⚠️ 线路2: 无法从URL提取视频ID")
+            return None
+        
+        # 第二步：使用抖音wap API获取视频信息
+        api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={aweme_id}"
+        
+        api_headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+            'Referer': 'https://www.douyin.com/',
+            'Accept': 'application/json',
+        }
+        
+        api_response = requests.get(api_url, headers=api_headers, timeout=15)
+        
+        if api_response.status_code != 200:
+            st.warning(f"⚠️ 线路2: API请求失败 (HTTP {api_response.status_code})")
+            return None
+        
+        data = api_response.json()
+        
+        # 检查API响应
+        if data.get('status_code') != 0:
+            st.warning(f"⚠️ 线路2: API返回错误 - {data.get('status_msg', '未知错误')}")
+            return None
+        
+        aweme_detail = data.get('aweme_detail')
+        if not aweme_detail:
+            st.warning("⚠️ 线路2: 未找到视频详情")
+            return None
+        
+        # 解析视频信息
+        result = {
+            'code': 200,
+            'message': 'success (线路2)',
+            'data': {
+                'awemeId': aweme_detail.get('aweme_id', ''),
+                'desc': aweme_detail.get('desc', ''),
+                'create_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(aweme_detail.get('create_time', 0))),
+                'author_name': aweme_detail.get('author', {}).get('nickname', ''),
+                'author': aweme_detail.get('author', {}).get('nickname', ''),
+                'nickname': aweme_detail.get('author', {}).get('nickname', ''),
+                'cover': '',
+                'comment_count': aweme_detail.get('statistics', {}).get('comment_count', 0),
+                'like_count': aweme_detail.get('statistics', {}).get('digg_count', 0),
+                'digg_count': aweme_detail.get('statistics', {}).get('digg_count', 0),
+                'share_count': aweme_detail.get('statistics', {}).get('share_count', 0),
+                'collect_count': aweme_detail.get('statistics', {}).get('collect_count', 0)
+            }
+        }
+        
+        # 检查是否为图集
+        images = aweme_detail.get('images')
+        if images:
+            result['data']['type'] = 'image'
+            result['data']['images'] = []
+            for img in images:
+                url_list = img.get('url_list', [])
+                if url_list:
+                    result['data']['images'].append(url_list[0])
+            if result['data']['images']:
+                result['data']['cover'] = result['data']['images'][0]
+        else:
+            # 解析视频
+            result['data']['type'] = 'video'
+            video_info = aweme_detail.get('video', {})
+            
+            # 获取封面
+            cover = video_info.get('cover', {})
+            if cover and 'url_list' in cover and cover['url_list']:
+                result['data']['cover'] = cover['url_list'][0]
+            
+            # 获取视频下载地址
+            video_urls = []
+            
+            # 方法1: play_addr (无水印)
+            play_addr = video_info.get('play_addr', {})
+            if play_addr and 'url_list' in play_addr:
+                for url in play_addr['url_list']:
+                    clean_url = url.replace('playwm', 'play')
+                    if clean_url not in video_urls:
+                        video_urls.append(clean_url)
+            
+            # 方法2: download_addr (下载地址)
+            download_addr = video_info.get('download_addr', {})
+            if download_addr and 'url_list' in download_addr:
+                for url in download_addr['url_list']:
+                    clean_url = url.replace('playwm', 'play')
+                    if clean_url not in video_urls:
+                        video_urls.append(clean_url)
+            
+            # 方法3: bit_rate (不同清晰度)
+            bit_rate_list = video_info.get('bit_rate', [])
+            for bit_rate in bit_rate_list:
+                play_addr_item = bit_rate.get('play_addr', {})
+                if play_addr_item and 'url_list' in play_addr_item:
+                    for url in play_addr_item['url_list']:
+                        clean_url = url.replace('playwm', 'play')
+                        if clean_url not in video_urls:
+                            video_urls.append(clean_url)
+            
+            # 确保URL完整
+            final_video_urls = []
+            for url in video_urls:
+                if not url.startswith('http'):
+                    url = 'https:' + url if url.startswith('//') else 'https://' + url
+                if url not in final_video_urls:
+                    final_video_urls.append(url)
+            
+            if final_video_urls:
+                result['data']['video_url'] = final_video_urls[0]
+                result['data']['all_video_urls'] = final_video_urls
+            
+        return result
+        
+    except Exception as e:
+        st.warning(f"⚠️ 线路2解析异常: {str(e)}")
+        return None
 
 
 def format_number_chinese(value):
@@ -2091,7 +2442,7 @@ elif page == "📱 抖音下载":
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown('<div class="card" style="padding: 20px;">', unsafe_allow_html=True)
+    st.markdown('<div class="card" style="padding: 20px; margin-top: 20px;">', unsafe_allow_html=True)
     
     douyin_url_input = st.text_input(
         "输入链接",
@@ -2100,9 +2451,46 @@ elif page == "📱 抖音下载":
         key="douyin_input"
     )
     
-    parse_button = st.button("解析", use_container_width=True, type="primary")
+    # 解析线路选择
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        parse_button = st.button("解析", use_container_width=True, type="primary")
+    with col2:
+        parse_mode = st.selectbox(
+            "线路",
+            ["自动", "线路1", "线路2"],
+            index=0,
+            label_visibility="collapsed",
+            key="parse_mode",
+            help="自动：智能切换 | 线路1：HTML解析 | 线路2：API解析"
+        )
     
     st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 线路说明
+    with st.expander("ℹ️ 解析线路说明"):
+        st.markdown("""
+            <div style='font-size: 13px; line-height: 1.6;'>
+                <p><strong>🔄 自动模式（推荐）</strong><br>
+                智能选择最佳线路，先尝试线路1，失败后自动切换线路2</p>
+                
+                <p><strong>🌐 线路1 - HTML解析</strong><br>
+                直接解析网页内容，适合大部分视频</p>
+                
+                <p><strong>📡 线路2 - API解析</strong><br>
+                使用移动端API，当线路1失败时可尝试此线路</p>
+                
+                <p style='color: var(--muted); font-size: 12px; margin-top: 12px;'>
+                💡 如果解析失败，可手动切换线路重试
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # 创建视频播放器占位符（放在解析按钮下方）
+    video_player_placeholder = st.empty()
+    
+    # 创建视频信息占位符（放在视频播放器下方）
+    video_info_placeholder = st.empty()
     
     if parse_button and douyin_url_input:
         douyin_url = None
@@ -2139,11 +2527,21 @@ elif page == "📱 抖音下载":
                         'Referer': 'https://www.douyin.com/'
                     }
                     
-                    redirect_response = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
-                    final_url = redirect_response.url
+                    # 使用重试机制获取重定向URL
+                    try:
+                        redirect_response = requests_with_retry(url, headers=headers, timeout=15, max_retries=2)
+                        final_url = redirect_response.url
+                    except Exception as e:
+                        st.error(f"❌ 获取重定向URL失败: {str(e)}")
+                        return None
                     
-                    html_response = requests.get(final_url, headers=headers, timeout=15)
-                    html_content = html_response.text
+                    # 使用重试机制获取HTML内容
+                    try:
+                        html_response = requests_with_retry(final_url, headers=headers, timeout=15, max_retries=2)
+                        html_content = html_response.text
+                    except Exception as e:
+                        st.error(f"❌ 获取页面内容失败: {str(e)}")
+                        return None
                     
                     render_data_match = re.search(r'<script id="RENDER_DATA" type="application/json">([^<]+)</script>', html_content)
                     if not render_data_match:
@@ -2200,82 +2598,128 @@ elif page == "📱 抖音下载":
                         result['_raw_video_info'] = video_info
                         video_url = None
                         
-                        # 尝试多个字段路径获取视频URL
+                        # 尝试多个字段路径获取视频URL - 返回所有可用URL
+                        video_urls = []
+
                         # 方法1: playAddr数组
                         play_addr = video_info.get('playAddr', [])
                         if isinstance(play_addr, list) and len(play_addr) > 0:
-                            if isinstance(play_addr[0], dict):
-                                video_url = play_addr[0].get('src', '')
-                            elif isinstance(play_addr[0], str):
-                                video_url = play_addr[0]
-                        
+                            for addr_item in play_addr:
+                                if isinstance(addr_item, dict):
+                                    url = addr_item.get('src', '')
+                                elif isinstance(addr_item, str):
+                                    url = addr_item
+                                else:
+                                    url = ''
+                                if url:
+                                    video_urls.append(url.replace('playwm', 'play').replace('\\u002F', '/'))
+
                         # 方法2: playApi字段
-                        if not video_url:
-                            play_api = video_info.get('playApi', '')
-                            if play_api:
-                                video_url = play_api
-                        
-                        # 方法3: bitRateList中选择最高码率
-                        if not video_url:
-                            bit_rate_list = video_info.get('bitRateList', [])
-                            if bit_rate_list:
-                                best_quality = None
-                                best_bitrate = 0
-                                for rate_item in bit_rate_list:
-                                    bitrate = rate_item.get('bitRate', 0) or rate_item.get('bitrate', 0)
-                                    if bitrate > best_bitrate:
-                                        # 尝试从多个字段获取URL
-                                        url_candidate = None
-                                        if rate_item.get('playApi'):
-                                            url_candidate = rate_item['playApi']
-                                        elif rate_item.get('playAddr'):
-                                            play_addr_item = rate_item['playAddr']
-                                            if isinstance(play_addr_item, list) and play_addr_item:
-                                                url_candidate = play_addr_item[0].get('src', '') if isinstance(play_addr_item[0], dict) else play_addr_item[0]
-                                            elif isinstance(play_addr_item, dict):
-                                                url_candidate = play_addr_item.get('src', '')
-                                        
-                                        if url_candidate:
-                                            best_quality = url_candidate
-                                            best_bitrate = bitrate
-                                
-                                if best_quality:
-                                    video_url = best_quality
-                        
+                        play_api = video_info.get('playApi', '')
+                        if play_api:
+                            video_urls.append(play_api.replace('playwm', 'play').replace('\\u002F', '/'))
+
+                        # 方法3: bitRateList中提取所有URL
+                        bit_rate_list = video_info.get('bitRateList', [])
+                        if bit_rate_list:
+                            for rate_item in bit_rate_list:
+                                # 尝试从多个字段获取URL
+                                url_candidates = []
+
+                                if rate_item.get('playApi'):
+                                    url_candidates.append(rate_item['playApi'])
+
+                                if rate_item.get('playAddr'):
+                                    play_addr_item = rate_item['playAddr']
+                                    if isinstance(play_addr_item, list):
+                                        for addr in play_addr_item:
+                                            if isinstance(addr, dict):
+                                                url = addr.get('src', '')
+                                            elif isinstance(addr, str):
+                                                url = addr
+                                            else:
+                                                url = ''
+                                            if url:
+                                                url_candidates.append(url)
+                                    elif isinstance(play_addr_item, dict):
+                                        url = play_addr_item.get('src', '')
+                                        if url:
+                                            url_candidates.append(url)
+
+                                # 添加找到的所有URL
+                                for url in url_candidates:
+                                    clean_url = url.replace('playwm', 'play').replace('\\u002F', '/')
+                                    if clean_url and clean_url not in video_urls:
+                                        video_urls.append(clean_url)
+
                         # 方法4: playAddrH265 或 playAddrH264
-                        if not video_url:
-                            for field in ['playAddrH265', 'playAddrH264', 'playAddrLowbr']:
-                                play_addr_h = video_info.get(field, [])
-                                if isinstance(play_addr_h, list) and play_addr_h:
-                                    if isinstance(play_addr_h[0], dict):
-                                        video_url = play_addr_h[0].get('src', '')
-                                    elif isinstance(play_addr_h[0], str):
-                                        video_url = play_addr_h[0]
-                                    if video_url:
-                                        break
-                        
+                        for field in ['playAddrH265', 'playAddrH264', 'playAddrLowbr']:
+                            play_addr_h = video_info.get(field, [])
+                            if isinstance(play_addr_h, list) and play_addr_h:
+                                for addr_item in play_addr_h:
+                                    if isinstance(addr_item, dict):
+                                        url = addr_item.get('src', '')
+                                    elif isinstance(addr_item, str):
+                                        url = addr_item
+                                    else:
+                                        url = ''
+                                    if url:
+                                        clean_url = url.replace('playwm', 'play').replace('\\u002F', '/')
+                                        if clean_url and clean_url not in video_urls:
+                                            video_urls.append(clean_url)
+
                         # 方法5: 直接的src或url字段
-                        if not video_url:
-                            video_url = video_info.get('src', '') or video_info.get('url', '')
-                        
+                        for field in ['src', 'url']:
+                            url = video_info.get(field, '')
+                            if url:
+                                clean_url = url.replace('playwm', 'play').replace('\\u002F', '/')
+                                if clean_url and clean_url not in video_urls:
+                                    video_urls.append(clean_url)
+
                         # 方法6: downloadAddr
-                        if not video_url:
-                            download_addr = video_info.get('downloadAddr', {})
-                            if isinstance(download_addr, dict):
-                                url_list = download_addr.get('urlList', [])
-                                if url_list:
-                                    video_url = url_list[0]
-                            elif isinstance(download_addr, str):
-                                video_url = download_addr
-                        
-                        # 清理和格式化视频URL
-                        if video_url:
-                            # 去除水印标记
-                            video_url = video_url.replace('playwm', 'play').replace('\\u002F', '/')
-                            # 确保是完整URL
-                            if not video_url.startswith('http'):
-                                video_url = 'https:' + video_url if video_url.startswith('//') else 'https://' + video_url
-                            result['data']['video_url'] = video_url
+                        download_addr = video_info.get('downloadAddr', {})
+                        if isinstance(download_addr, dict):
+                            url_list = download_addr.get('urlList', [])
+                            if url_list:
+                                for url in url_list:
+                                    clean_url = url.replace('playwm', 'play').replace('\\u002F', '/')
+                                    if clean_url and clean_url not in video_urls:
+                                        video_urls.append(clean_url)
+                        elif isinstance(download_addr, str):
+                            clean_url = download_addr.replace('playwm', 'play').replace('\\u002F', '/')
+                            if clean_url and clean_url not in video_urls:
+                                video_urls.append(clean_url)
+
+                        # 确保所有URL都是完整的
+                        final_video_urls = []
+                        for url in video_urls:
+                            if not url.startswith('http'):
+                                url = 'https:' + url if url.startswith('//') else 'https://' + url
+                            if url not in final_video_urls:
+                                final_video_urls.append(url)
+
+                        # 使用多URL尝试机制
+                        if final_video_urls:
+                            best_url = None
+                            try:
+                                # 在Streamlit中运行异步函数
+                                import asyncio
+                                try:
+                                    loop = asyncio.get_event_loop()
+                                except RuntimeError:
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+
+                                best_url = loop.run_until_complete(try_multiple_video_urls(final_video_urls))
+                            except Exception as e:
+                                st.warning(f"⚠️ 多URL尝试失败，使用第一个URL: {str(e)}")
+                                best_url = final_video_urls[0] if final_video_urls else None
+
+                            if best_url:
+                                result['data']['video_url'] = best_url
+                                result['data']['all_video_urls'] = final_video_urls  # 保存所有URL用于调试
+                        else:
+                            st.warning("⚠️ 未找到任何视频URL")
                         
                         # 获取封面
                         cover_list = video_info.get('cover', {}).get('urlList', [])
@@ -2289,11 +2733,31 @@ elif page == "📱 抖音下载":
                     
                     return result
                 
-                data = parse_douyin_url(douyin_url)
+                # 根据用户选择的模式进行解析
+                data = None
+                
+                if parse_mode == "线路1":
+                    # 仅使用线路1
+                    st.info("🔄 使用线路1 (HTML解析)...")
+                    data = parse_douyin_url(douyin_url)
+                elif parse_mode == "线路2":
+                    # 仅使用线路2
+                    st.info("🔄 使用线路2 (API解析)...")
+                    data = parse_douyin_url_method2(douyin_url)
+                else:
+                    # 自动模式：先尝试线路1，失败则切换线路2
+                    st.info("🔄 自动模式：正在使用线路1解析...")
+                    data = parse_douyin_url(douyin_url)
+                    
+                    if not data:
+                        st.info("🔄 线路1失败，切换到线路2...")
+                        data = parse_douyin_url_method2(douyin_url)
                 
                 if data:
+                    # 显示成功信息，包含使用的线路
+                    route_info = "线路2 (API)" if "线路2" in data.get('message', '') else "线路1 (HTML)"
+                    st.success(f"✅ 解析成功！({route_info})")
                     st.session_state['douyin_data'] = data
-                    st.success("✅ 解析成功！")
                     
                     # 检查视频URL是否获取成功
                     if data.get('data', {}).get('type') == 'video':
@@ -2307,7 +2771,8 @@ elif page == "📱 抖音下载":
                                 else:
                                     st.info("无原始视频信息")
                 else:
-                    st.error("❌ 无法解析视频信息，请检查链接是否正确")
+                    st.error("❌ 所有解析线路均失败，请检查链接是否正确或稍后重试")
+                    st.info("💡 提示：如果链接是最新发布的视频，请稍等几分钟后重试")
             
             except requests.exceptions.Timeout:
                 st.error("❌ 请求超时，请稍后重试")
@@ -2319,204 +2784,239 @@ elif page == "📱 抖音下载":
                 with st.expander("查看详细错误"):
                     st.code(traceback.format_exc())
     
+    # 显示解析结果
     if 'douyin_data' in st.session_state:
         data = st.session_state['douyin_data']
         
         if 'code' in data and data['code'] != 200:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.error(f"❌ 解析失败：{data.get('message', '未知错误')}")
-            st.markdown('</div>', unsafe_allow_html=True)
+            with video_player_placeholder.container():
+                st.markdown('<div class="card">', unsafe_allow_html=True)
+                st.error(f"❌ 解析失败：{data.get('message', '未知错误')}")
+                st.markdown('</div>', unsafe_allow_html=True)
         elif 'data' in data:
             video_info = data['data']
-            
-            st.markdown('<div class="card" style="padding: 24px; margin-top: 16px;">', unsafe_allow_html=True)
-            
-            if 'cover' in video_info:
-                st.image(video_info['cover'], use_container_width=True)
-            
-            if 'desc' in video_info and video_info['desc']:
-                st.markdown(f"""
-                    <div style='margin: 16px 0 20px 0; color: var(--text); font-size: 15px; line-height: 1.7; font-weight: 500;'>
-                        {video_info['desc']}
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            author_name = video_info.get('author_name', video_info.get('author', video_info.get('nickname', '')))
-            create_time = video_info.get('create_time', video_info.get('createTime', ''))
-            
-            primary_stats_mapping = [
-                ('comment_count', 'comment', 'commentCount', '评论', '💬'),
-                ('like_count', 'digg_count', 'like', 'likeCount', 'diggCount', '点赞', '❤️'),
-                ('share_count', 'share', 'shareCount', '分享', '📤'),
-                ('collect_count', 'collect', 'collectCount', '收藏', '⭐')
-            ]
-            
-            primary_stats = []
-            for fields in primary_stats_mapping:
-                *field_names, label, icon = fields
-                value = None
-                for field in field_names:
-                    if field in video_info and video_info[field]:
-                        value = video_info[field]
-                        break
-                if value is not None and value >= 0:
-                    formatted_count = value
-                    if value >= 10000:
-                        formatted_count = f"{value/10000:.1f}w"
-                    elif value >= 1000:
-                        formatted_count = f"{value/1000:.1f}k"
-                    else:
-                        formatted_count = str(value)
-                    primary_stats.append((label, formatted_count, icon))
-            
-            while len(primary_stats) < 4:
-                primary_stats.append(('', '0', ''))
-            
-            st.markdown('<div style="margin: 16px 0; padding: 16px; background: linear-gradient(135deg, rgba(230, 250, 242, 0.5) 0%, rgba(16, 163, 127, 0.03) 100%); border-radius: 12px; border: 1px solid rgba(16, 163, 127, 0.15);">', unsafe_allow_html=True)
-            
-            if author_name or create_time:
-                row1_cols = st.columns([2, 1, 1, 1, 1])
-                
-                with row1_cols[0]:
-                    if author_name:
-                        st.markdown(f"**👤 {author_name}**")
-                    if create_time:
-                        st.markdown(f'<span style="color: #61646b; font-size: 13px;">📅 {create_time}</span>', unsafe_allow_html=True)
-                
-                for idx, (label, formatted_count, icon) in enumerate(primary_stats):
-                    with row1_cols[idx + 1]:
-                        st.markdown(f'<div style="text-align: center;"><div style="font-size: 24px; margin-bottom: 4px;">{icon}</div><div style="color: #10a37f; font-weight: 700; font-size: 20px; margin-bottom: 2px;">{formatted_count}</div><div style="color: #61646b; font-size: 12px;">{label}</div></div>', unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            st.markdown('<div class="card" style="padding: 20px; margin-top: 16px;">', unsafe_allow_html=True)
-            
             content_type = video_info.get('type', 'video')
             
-            possible_video_fields = ['video_url', 'videoUrl', 'video', 'play_url', 'playUrl', 'download_url', 'downloadUrl', 'url', 'video_link', 'videoLink', 'play_addr', 'playAddr']
-            video_url = None
-            
-            for field in possible_video_fields:
-                if field in video_info:
-                    value = video_info[field]
-                    if isinstance(value, str) and value.startswith('http'):
-                        video_url = value
-                        break
-                    elif isinstance(value, dict):
-                        for sub_field in ['url', 'uri', 'link', 'url_list']:
-                            if sub_field in value:
-                                sub_value = value[sub_field]
-                                if isinstance(sub_value, str) and sub_value.startswith('http'):
-                                    video_url = sub_value
-                                    break
-                                elif isinstance(sub_value, list) and len(sub_value) > 0:
-                                    video_url = sub_value[0]
-                                    break
-                        if video_url:
-                            break
-                    elif isinstance(value, list) and len(value) > 0:
-                        if isinstance(value[0], str) and value[0].startswith('http'):
-                            video_url = value[0]
-                            break
-            
+            # 处理视频类型
             if content_type == 'video':
+                video_url = video_info.get('video_url')
+                all_video_urls = video_info.get('all_video_urls', [])
+                
+                # 显示视频播放器
                 if video_url:
-                    with st.spinner("获取中..."):
-                        try:
-                            video_response = requests.get(video_url, timeout=30)
-                            if video_response.status_code == 200:
-                                video_bytes = video_response.content
-                                file_size_mb = len(video_bytes) / 1024 / 1024
-                                
-                                st.markdown('<div style="margin-bottom: 12px;">', unsafe_allow_html=True)
-                                st.download_button(
-                                    label=f"下载原视频 · {file_size_mb:.1f} MB",
-                                    data=video_bytes,
-                                    file_name=f"douyin_{time.strftime('%Y%m%d_%H%M%S')}.mp4",
-                                    mime="video/mp4",
-                                    use_container_width=True,
-                                    type="primary"
-                                )
-                                st.markdown('</div>', unsafe_allow_html=True)
-                                
-                                with st.expander("预览视频", expanded=False):
-                                    st.video(video_bytes)
-                            else:
-                                st.error(f"❌ 获取视频失败 (HTTP {video_response.status_code})")
-                                st.code(video_url, language="text")
-                        except Exception as e:
-                            st.error(f"❌ 下载失败：{str(e)}")
-                            with st.expander("🔗 查看直链"):
-                                st.code(video_url, language="text")
-                else:
-                    st.warning("⚠️ 未找到视频链接")
-                    with st.expander("🔍 查看调试信息"):
-                        st.json(video_info)
+                    with video_player_placeholder.container():
+                        st.markdown('<div class="card" style="padding: 20px; margin-top: 16px;">', unsafe_allow_html=True)
+                        st.markdown("### 🎥 视频播放")
+                        
+                        # 使用HTML5视频播放器（纯客户端加载，不经过服务器）
+                        video_html = f"""
+                        <div style="width: 100%; background: #000; border-radius: 12px; overflow: hidden; padding: 10px;">
+                            <video 
+                                width="100%" 
+                                controls 
+                                controlsList="nodownload"
+                                preload="metadata"
+                                style="display: block; max-height: 600px; border-radius: 8px;"
+                                poster="{video_info.get('cover', '')}"
+                            >
+                                <source src="{video_url}" type="video/mp4">
+                                您的浏览器不支持视频播放。
+                            </video>
+                        </div>
+                        <div style='font-size: 12px; color: #888; margin-top: 12px; text-align: center;'>
+                            💡 视频直接从抖音CDN加载到您的浏览器，不经过服务器
+                        </div>
+                        """
+                        
+                        # 使用iframe组件嵌入HTML，确保不经过服务器
+                        st.components.v1.html(video_html, height=650, scrolling=False)
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # 下载链接区域
+                        st.markdown('<div class="card" style="padding: 20px; margin-top: 12px;">', unsafe_allow_html=True)
+                        st.markdown("### 📥 下载链接")
+                        
+                        # 主下载链接
+                        st.markdown("**🎯 主下载链接（推荐）**")
+                        st.code(video_url, language="text")
+                        
+                        # 使用说明
+                        with st.expander("💡 如何下载视频"):
+                            st.markdown("""
+                                <div style='font-size: 13px; line-height: 1.8;'>
+                                    <p><strong>方法1：浏览器直接下载</strong></p>
+                                    <ol>
+                                        <li>复制上方链接</li>
+                                        <li>在新标签页中打开链接</li>
+                                        <li>右键点击视频 → 视频另存为</li>
+                                    </ol>
+                                    
+                                    <p><strong>方法2：使用下载工具</strong></p>
+                                    <p>使用 wget、curl、IDM 等下载工具，记得添加以下请求头：</p>
+                                    <pre style='background: var(--chip); padding: 8px; border-radius: 4px; font-size: 11px;'>
+User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)
+Referer: https://www.douyin.com/
+Accept-Language: zh-CN,zh;q=0.8</pre>
+                                    
+                                    <p><strong>wget 命令示例：</strong></p>
+                                    <pre style='background: var(--chip); padding: 8px; border-radius: 4px; font-size: 11px;'>wget -O video.mp4 \\
+--header="User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)" \\
+--header="Referer: https://www.douyin.com/" \\
+"{video_url}"</pre>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        
+                        # 备用链接
+                        if all_video_urls and len(all_video_urls) > 1:
+                            st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+                            st.markdown("**🔄 备用下载链接**")
+                            
+                            backup_url = all_video_urls[1] if len(all_video_urls) > 1 else all_video_urls[0]
+                            st.code(backup_url, language="text")
+                            
+                            if len(all_video_urls) > 2:
+                                with st.expander(f"查看更多备用链接 ({len(all_video_urls)-2} 个)"):
+                                    for i, url in enumerate(all_video_urls[2:], 3):
+                                        st.markdown(f"**备用链接 {i-1}:**")
+                                        st.code(url, language="text")
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
             
-            elif content_type == 'image' or 'images' in video_info:
+            # 显示视频信息（封面、描述、统计）
+            with video_info_placeholder.container():
+                st.markdown('<div class="card" style="padding: 24px; margin-top: 16px;">', unsafe_allow_html=True)
+                
+                if 'cover' in video_info and content_type != 'video':
+                    st.image(video_info['cover'], use_container_width=True)
+                
+                if 'desc' in video_info and video_info['desc']:
+                    st.markdown(f"""
+                        <div style='margin: 16px 0 20px 0; color: var(--text); font-size: 15px; line-height: 1.7; font-weight: 500;'>
+                            {video_info['desc']}
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                author_name = video_info.get('author_name', video_info.get('author', video_info.get('nickname', '')))
+                create_time = video_info.get('create_time', video_info.get('createTime', ''))
+                
+                primary_stats_mapping = [
+                    ('comment_count', 'comment', 'commentCount', '评论', '💬'),
+                    ('like_count', 'digg_count', 'like', 'likeCount', 'diggCount', '点赞', '❤️'),
+                    ('share_count', 'share', 'shareCount', '分享', '📤'),
+                    ('collect_count', 'collect', 'collectCount', '收藏', '⭐')
+                ]
+                
+                primary_stats = []
+                for fields in primary_stats_mapping:
+                    *field_names, label, icon = fields
+                    value = None
+                    for field in field_names:
+                        if field in video_info and video_info[field]:
+                            value = video_info[field]
+                            break
+                    if value is not None and value >= 0:
+                        formatted_count = value
+                        if value >= 10000:
+                            formatted_count = f"{value/10000:.1f}w"
+                        elif value >= 1000:
+                            formatted_count = f"{value/1000:.1f}k"
+                        else:
+                            formatted_count = str(value)
+                        primary_stats.append((label, formatted_count, icon))
+                
+                while len(primary_stats) < 4:
+                    primary_stats.append(('', '0', ''))
+                
+                st.markdown('<div style="margin: 16px 0; padding: 16px; background: linear-gradient(135deg, rgba(230, 250, 242, 0.5) 0%, rgba(16, 163, 127, 0.03) 100%); border-radius: 12px; border: 1px solid rgba(16, 163, 127, 0.15);">', unsafe_allow_html=True)
+                
+                if author_name or create_time:
+                    row1_cols = st.columns([2, 1, 1, 1, 1])
+                    
+                    with row1_cols[0]:
+                        if author_name:
+                            st.markdown(f"**👤 {author_name}**")
+                        if create_time:
+                            st.markdown(f'<span style="color: #61646b; font-size: 13px;">📅 {create_time}</span>', unsafe_allow_html=True)
+                    
+                    for idx, (label, formatted_count, icon) in enumerate(primary_stats):
+                        with row1_cols[idx + 1]:
+                            st.markdown(f'<div style="text-align: center;"><div style="font-size: 24px; margin-bottom: 4px;">{icon}</div><div style="color: #10a37f; font-weight: 700; font-size: 20px; margin-bottom: 2px;">{formatted_count}</div><div style="color: #61646b; font-size: 12px;">{label}</div></div>', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # 处理图片集类型
+            if content_type == 'image' or 'images' in video_info:
                 images = video_info.get('images', [])
                 if images:
-                    st.success(f"🖼️ 找到 {len(images)} 张图片")
-                    
-                    cols_per_row = 3
-                    for i in range(0, len(images), cols_per_row):
-                        cols = st.columns(cols_per_row)
-                        for j, col in enumerate(cols):
-                            img_idx = i + j
-                            if img_idx < len(images):
-                                img_url = images[img_idx]
-                                with col:
-                                    try:
-                                        img_response = requests.get(img_url, timeout=30)
-                                        if img_response.status_code == 200:
-                                            img_bytes = img_response.content
-                                            st.image(img_bytes, use_container_width=True)
-                                            st.download_button(
-                                                label=f"⬇️ 图 {img_idx+1}",
-                                                data=img_bytes,
-                                                file_name=f"douyin_{img_idx+1}_{time.strftime('%H%M%S')}.jpg",
-                                                mime="image/jpeg",
-                                                use_container_width=True,
-                                                key=f"img_{img_idx}"
+                    with video_player_placeholder.container():
+                        st.markdown('<div class="card" style="padding: 20px; margin-top: 16px;">', unsafe_allow_html=True)
+                        st.success(f"🖼️ 找到 {len(images)} 张图片")
+                        
+                        cols_per_row = 3
+                        for i in range(0, len(images), cols_per_row):
+                            cols = st.columns(cols_per_row)
+                            for j, col in enumerate(cols):
+                                img_idx = i + j
+                                if img_idx < len(images):
+                                    img_url = images[img_idx]
+                                    with col:
+                                        try:
+                                            # 使用重试机制下载图片
+                                            img_response = requests_with_retry(
+                                                img_url, 
+                                                timeout=15,  # 图片使用较短超时
+                                                max_retries=2
                                             )
-                                    except Exception as e:
-                                        st.error(f"❌ 加载失败")
-                    
-                    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-                    
-                    if st.button("📦 批量下载全部", use_container_width=True, type="primary"):
-                        with st.spinner(f"正在打包 {len(images)} 张图片..."):
-                            import zipfile
-                            
-                            zip_buffer = BytesIO()
-                            success_count = 0
-                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                                for i, img_url in enumerate(images):
-                                    try:
-                                        img_response = requests.get(img_url, timeout=30)
-                                        if img_response.status_code == 200:
-                                            img_bytes = img_response.content
-                                            zip_file.writestr(f"douyin_{i+1}.jpg", img_bytes)
-                                            success_count += 1
-                                    except:
-                                        pass
-                            
-                            zip_buffer.seek(0)
-                            st.download_button(
-                                label=f"⬇️ 下载压缩包 ({success_count}/{len(images)} 张)",
-                                data=zip_buffer.getvalue(),
-                                file_name=f"douyin_{time.strftime('%Y%m%d_%H%M%S')}.zip",
-                                mime="application/zip",
-                                use_container_width=True
-                            )
+                                            if img_response.status_code == 200:
+                                                img_bytes = img_response.content
+                                                st.image(img_bytes, use_container_width=True)
+                                                st.download_button(
+                                                    label=f"⬇️ 图 {img_idx+1}",
+                                                    data=img_bytes,
+                                                    file_name=f"douyin_{img_idx+1}_{time.strftime('%H%M%S')}.jpg",
+                                                    mime="image/jpeg",
+                                                    use_container_width=True,
+                                                    key=f"img_{img_idx}"
+                                                )
+                                        except Exception as e:
+                                            st.error(f"❌ 加载失败")
+                        
+                        st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+                        
+                        if st.button("📦 批量下载全部", use_container_width=True, type="primary"):
+                            with st.spinner(f"正在打包 {len(images)} 张图片..."):
+                                import zipfile
+                                
+                                zip_buffer = BytesIO()
+                                success_count = 0
+                                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                    for i, img_url in enumerate(images):
+                                        try:
+                                            # 使用带请求头的方式下载图片
+                                            img_response = requests_with_retry(img_url, timeout=30, max_retries=2)
+                                            if img_response.status_code == 200:
+                                                img_bytes = img_response.content
+                                                zip_file.writestr(f"douyin_{i+1}.jpg", img_bytes)
+                                                success_count += 1
+                                        except:
+                                            pass
+                                
+                                zip_buffer.seek(0)
+                                st.download_button(
+                                    label=f"⬇️ 下载压缩包 ({success_count}/{len(images)} 张)",
+                                    data=zip_buffer.getvalue(),
+                                    file_name=f"douyin_{time.strftime('%Y%m%d_%H%M%S')}.zip",
+                                    mime="application/zip",
+                                    use_container_width=True
+                                )
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
                 else:
-                    st.warning("⚠️ 未找到图片")
-            else:
-                st.info("📦 内容类型未知，请查看调试信息")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+                    with video_player_placeholder.container():
+                        st.warning("⚠️ 未找到图片")
         else:
             st.markdown('<div class="card">', unsafe_allow_html=True)
             st.error("❌ API返回数据格式异常")
