@@ -1,0 +1,115 @@
+version: '3.8'
+
+# 使用 GitHub Container Registry 镜像的 Docker Compose 配置
+# 
+# 使用方法：
+# 1. 将 <YOUR_GITHUB_USERNAME> 替换为你的 GitHub 用户名
+# 2. docker-compose -f docker-compose.ghcr.yml up -d
+#
+# 注意：如果镜像是私有的，需要先登录：
+# echo "YOUR_TOKEN" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+
+services:
+  # 后端 API 服务（使用预构建的镜像）
+  backend:
+    image: ghcr.io/<YOUR_GITHUB_USERNAME>/soybean-admin/backend:latest
+    # 如果需要使用特定版本，可以指定标签：
+    # image: ghcr.io/<YOUR_GITHUB_USERNAME>/soybean-admin/backend:sha-abc123
+    container_name: combo-tool-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=Combo Tool API
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - DATABASE_URL=mysql+pymysql://combo_user:combo_password@mysql:3306/combo_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:80,http://localhost
+      - LOG_LEVEL=INFO
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - combo-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health/ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: combo-tool-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: combo_db
+      MYSQL_USER: combo_user
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-combo_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 如果需要初始化脚本，取消下面的注释
+      # - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    networks:
+      - combo-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: combo-tool-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - combo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # 前端服务（使用预构建的镜像，可选）
+  frontend:
+    image: ghcr.io/<YOUR_GITHUB_USERNAME>/soybean-admin/frontend:latest
+    container_name: combo-tool-frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - combo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  combo-network:
+    driver: bridge

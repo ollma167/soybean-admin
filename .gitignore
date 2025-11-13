@@ -33,3 +33,41 @@ package-lock.json
 yarn.lock
 
 .VSCodeCounter
+
+# Backend Python
+backend/__pycache__
+backend/**/__pycache__
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.Python
+backend/**/*.so
+backend/*.egg
+backend/*.egg-info
+backend/dist
+backend/build
+backend/.env
+backend/.venv
+backend/venv/
+backend/env/
+backend/ENV/
+backend/.pytest_cache
+backend/.coverage
+backend/htmlcov/
+backend/.mypy_cache/
+
+# Database
+*.sql.backup
+*.sql.gz
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# IDE
+*.swp
+*.swo
+*~

@@ -1,6 +1,6 @@
 <div align="center">
-	<img src="./public/favicon.svg" width="160" />
-	<h1>SoybeanAdmin</h1>
+    <img src="./public/favicon.svg" width="160" />
+    <h1>SoybeanAdmin</h1>
   <span>中文 | <a href="./README.en_US.md">English</a></span>
 </div>
 
@@ -163,6 +163,351 @@ pnpm build
 
 参考 [代码同步](https://docs.soybeanjs.cn/zh/guide/sync) 文档。
 
+---
+
+## 🚀 组合装生成工具 - 前后端分离系统
+
+本项目已集成完整的**前后端分离架构**，包含 Python FastAPI 后端、MySQL 数据库、Redis 缓存以及 Docker 容器化部署方案。
+
+### 📦 系统架构
+
+```
+前端 (Vue3 + Vite)  ←→  Nginx  ←→  后端 (FastAPI + Python)
+                                        ↓
+                            MySQL (数据持久化) + Redis (缓存)
+```
+
+### 🎯 核心功能
+
+- ✅ **模板管理系统**：完整的 CRUD 操作，支持分页、搜索和过滤
+- ✅ **组合装生成引擎**：根据模板快速生成商品组合数据
+- ✅ **Redis 缓存**：热点数据缓存，提升性能
+- ✅ **RESTful API**：标准化的 API 接口，自动生成文档
+- ✅ **Docker 部署**：一键启动所有服务
+- ✅ **健康监控**：完整的服务健康检查机制
+- ✅ **CI/CD 集成**：GitHub Actions 自动构建 Docker 镜像
+
+### 🐳 使用预构建的 Docker 镜像
+
+GitHub Actions 会自动构建并发布 Docker 镜像到 GitHub Container Registry：
+
+**镜像地址：**
+- 后端：`ghcr.io/<你的用户名>/soybean-admin/backend:latest`
+- 前端：`ghcr.io/<你的用户名>/soybean-admin/frontend:latest`
+
+**快速启动：**
+
+```bash
+# 1. 拉取配置文件
+wget https://raw.githubusercontent.com/<你的仓库>/feat-split-front-back-python-docker-mysql-redis/docker-compose.ghcr.yml
+
+# 2. 修改配置中的 <YOUR_GITHUB_USERNAME> 为你的用户名
+
+# 3. 启动服务
+docker-compose -f docker-compose.ghcr.yml up -d
+
+# 4. 访问服务
+# API文档: http://localhost:8000/docs
+# 健康检查: http://localhost:8000/api/health
+```
+
+**详细说明：**
+- 📖 [Docker镜像使用指南](DOCKER镜像使用指南.md) - 完整的镜像使用文档
+- 📋 [镜像快速参考](镜像快速参考.md) - 常用命令速查表
+- 🔧 [docker-compose.ghcr.yml](docker-compose.ghcr.yml) - 使用镜像的配置文件
+
+### ⚡ 快速开始
+
+#### 方式一：使用自动化脚本（推荐）
+
+```bash
+# 1. 切换到功能分支
+git checkout feat-split-front-back-python-docker-mysql-redis
+
+# 2. 运行自动化安装脚本
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+
+# 脚本将自动完成：
+# - 环境检查（Docker、Docker Compose）
+# - 服务启动（后端、数据库、缓存）
+# - 数据迁移（templates.json → MySQL）
+```
+
+#### 方式二：使用 Docker Compose
+
+```bash
+# 1. 配置环境变量
+cp backend/.env.example backend/.env
+# 根据需要编辑 backend/.env
+
+# 2. 启动所有服务（生产模式）
+docker-compose up -d
+
+# 或启动开发模式（带热重载）
+docker-compose -f docker-compose.dev.yml up -d
+
+# 3. 迁移模板数据到 MySQL
+docker-compose exec backend python /app/../scripts/migrate_templates.py /app/../tool/templates.json
+
+# 4. 查看服务状态
+docker-compose ps
+
+# 5. 查看日志
+docker-compose logs -f
+```
+
+#### 方式三：本地开发（无 Docker）
+
+**后端启动：**
+
+```bash
+# 1. 安装 Python 依赖
+cd backend
+python3.11 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，配置数据库和 Redis 连接
+
+# 3. 确保 MySQL 和 Redis 已启动
+# MySQL: localhost:3306
+# Redis: localhost:6379
+
+# 4. 初始化数据库
+mysql -u combo_user -p combo_db < migrations/init.sql
+
+# 5. 启动后端服务
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**前端启动：**
+
+```bash
+# 在项目根目录
+pnpm install
+pnpm dev
+```
+
+### 🌐 访问服务
+
+启动成功后，您可以访问以下地址：
+
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| **前端应用** | http://localhost | Vue3 管理后台界面 |
+| **后端 API** | http://localhost:8000 | FastAPI 后端服务 |
+| **API 文档** | http://localhost/docs | Swagger 交互式文档 |
+| **API 文档** | http://localhost/redoc | ReDoc 文档 |
+| **健康检查** | http://localhost/api/health | 服务健康状态 |
+| **MySQL** | localhost:3306 | 数据库（用户: combo_user） |
+| **Redis** | localhost:6379 | 缓存服务 |
+
+### 📋 API 端点示例
+
+#### 1. 健康检查
+
+```bash
+# 完整健康检查
+curl http://localhost/api/health
+
+# 快速 Ping
+curl http://localhost/api/health/ping
+```
+
+#### 2. 模板管理
+
+```bash
+# 获取所有模板
+curl http://localhost/api/v1/templates
+
+# 获取模板详情
+curl http://localhost/api/v1/templates/1
+
+# 创建模板
+curl -X POST http://localhost/api/v1/templates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "测试模板",
+    "description": "这是一个测试模板",
+    "combos": [
+      {
+        "prefix": "TEST_",
+        "items": [
+          {
+            "product_code": "PROD001",
+            "quantity": 1,
+            "sale_price": 100.0,
+            "base_price": 90.0,
+            "cost_price": 50.0
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+#### 3. 生成组合装
+
+```bash
+curl -X POST http://localhost/api/v1/combos/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_id": 1,
+    "main_product_codes": ["M001", "M002"],
+    "main_product_specs": ["蓝色-L", "蓝色-M"]
+  }'
+```
+
+### 🛠️ 常用命令
+
+#### Docker Compose 命令
+
+```bash
+# 启动服务
+docker-compose up -d
+
+# 停止服务
+docker-compose down
+
+# 重启特定服务
+docker-compose restart backend
+
+# 查看日志
+docker-compose logs -f backend    # 后端日志
+docker-compose logs -f mysql      # MySQL 日志
+docker-compose logs -f redis      # Redis 日志
+
+# 进入容器
+docker-compose exec backend bash
+docker-compose exec mysql mysql -u combo_user -pcombo_password combo_db
+
+# 重新构建
+docker-compose build
+docker-compose up -d --build
+```
+
+#### 数据库管理
+
+```bash
+# 连接 MySQL
+docker-compose exec mysql mysql -u combo_user -pcombo_password combo_db
+
+# 备份数据库
+docker-compose exec mysql mysqldump -u combo_user -pcombo_password combo_db > backup.sql
+
+# 恢复数据库
+docker-compose exec -T mysql mysql -u combo_user -pcombo_password combo_db < backup.sql
+
+# 查看表
+docker-compose exec mysql mysql -u combo_user -pcombo_password combo_db -e "SHOW TABLES;"
+```
+
+#### Redis 管理
+
+```bash
+# 连接 Redis
+docker-compose exec redis redis-cli
+
+# 查看所有键
+docker-compose exec redis redis-cli KEYS '*'
+
+# 清空缓存
+docker-compose exec redis redis-cli FLUSHDB
+```
+
+### 📚 详细文档
+
+- **[快速入门指南](QUICK_START.md)** - 最快的启动方式和常见问题解决
+- **[完整部署文档](DEPLOYMENT.md)** - 详细的部署说明、配置和运维指南
+- **[系统架构文档](ARCHITECTURE.md)** - 系统设计、技术选型和最佳实践
+- **[项目改造总结](PROJECT_SUMMARY.md)** - 前后端分离改造的完整说明
+- **[后端 API 文档](backend/README.md)** - 后端开发和 API 使用文档
+- **[变更日志](CHANGES.md)** - 详细的变更记录
+
+### 🔧 环境要求
+
+**使用 Docker（推荐）：**
+- Docker 20.10+
+- Docker Compose 2.0+
+
+**本地开发：**
+- Python 3.11+
+- MySQL 8.0+
+- Redis 7.0+
+- Node.js 20.19.0+
+- pnpm 10.5.0+
+
+### 🐛 故障排除
+
+#### 后端无法启动
+```bash
+# 查看日志
+docker-compose logs backend
+
+# 检查数据库连接
+docker-compose exec mysql mysqladmin ping -h localhost -u combo_user -pcombo_password
+
+# 重启后端
+docker-compose restart backend
+```
+
+#### 端口被占用
+```bash
+# 查看端口占用
+lsof -i :8000  # 后端
+lsof -i :3306  # MySQL
+lsof -i :6379  # Redis
+
+# 修改端口（编辑 docker-compose.yml）
+```
+
+#### 数据迁移失败
+```bash
+# 手动运行迁移
+docker-compose exec backend python /app/../scripts/migrate_templates.py /app/../tool/templates.json
+
+# 查看迁移日志
+docker-compose logs backend | grep migrate
+```
+
+更多故障排除方案请参考 [快速入门指南](QUICK_START.md)。
+
+### 💡 技术栈
+
+**后端：**
+- FastAPI 0.115.0
+- Python 3.11
+- SQLAlchemy 2.0.36
+- Pydantic 2.10.3
+- Redis 5.2.0
+- MySQL 8.0
+
+**前端：**
+- Vue 3.5.22
+- Vite 7.1.12
+- TypeScript 5.9.3
+- Naive UI 2.43.1
+- Pinia 3.0.3
+
+**基础设施：**
+- Docker & Docker Compose
+- Nginx
+- GitHub Actions
+
+### 🎯 下一步计划
+
+- [ ] 前端集成新的 API 接口
+- [ ] 用户认证和授权系统
+- [ ] API 限流和安全增强
+- [ ] 完善单元测试和集成测试
+- [ ] 性能监控和日志分析
+- [ ] Kubernetes 部署方案
+
+---
+
 ## 周边生态
 
 - [react-soybean-admin](https://github.com/mufeng889/react-soybean-admin): 基于SoybeanAdmin的React版本.
@@ -221,17 +566,17 @@ pnpm build
 `SoybeanAdmin` 是完全开源免费的项目，在帮助开发者更方便地进行中大型管理系统开发，同时也提供微信和 QQ 交流群，使用问题欢迎在群内提问。
 
   <div>
-  	<p>QQ交流群</p>
+      <p>QQ交流群</p>
     <img src="https://soybeanjs-1300612522.cos.ap-guangzhou.myqcloud.com/uPic/qq-soybean-admin-4.jpg" style="width:200px" />
   </div>
-	<!-- <div>
-		<p>微信群</p>
-		<img src="https://soybeanjs-1300612522.cos.ap-guangzhou.myqcloud.com/picgo/soybean-admin-wechat-0620.jpg" style="width:200px" />
-	</div> -->
-	<div>
-		<p>添加下面微信邀请进微信群</p>
-		<img src="https://soybeanjs-1300612522.cos.ap-guangzhou.myqcloud.com/uPic/wechat-soybeanjs.jpg" style="width:200px" />
-	</div>
+    <!-- <div>
+        <p>微信群</p>
+        <img src="https://soybeanjs-1300612522.cos.ap-guangzhou.myqcloud.com/picgo/soybean-admin-wechat-0620.jpg" style="width:200px" />
+    </div> -->
+    <div>
+        <p>添加下面微信邀请进微信群</p>
+        <img src="https://soybeanjs-1300612522.cos.ap-guangzhou.myqcloud.com/uPic/wechat-soybeanjs.jpg" style="width:200px" />
+    </div>
 
 ## Star 趋势
 

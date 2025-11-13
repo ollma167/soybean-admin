@@ -1,0 +1,35 @@
+# FastAPI and server
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+
+# Database
+sqlalchemy==2.0.36
+pymysql==1.1.1
+alembic==1.14.0
+
+# Redis
+redis==5.2.0
+hiredis==3.0.0
+
+# Data processing
+pandas==2.2.3
+openpyxl==3.1.5
+xlsxwriter==3.2.0
+
+# Validation and serialization
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.12
+
+# Utilities
+python-dotenv==1.0.1
+tenacity==9.0.0
+httpx==0.28.1
+
+# Logging and monitoring
+structlog==24.4.0

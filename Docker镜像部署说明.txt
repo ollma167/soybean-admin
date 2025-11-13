@@ -1,0 +1,232 @@
+=================================================================
+  组合装生成工具 - Docker 镜像使用说明
+=================================================================
+
+✅ 已完成的工作
+-----------------------------------------------------------------
+
+1. GitHub Actions 自动构建
+   - 工作流文件：.github/workflows/build-and-push-docker.yml
+   - 自动构建两个镜像：backend 和 frontend
+   - 推送到：ghcr.io/<你的GitHub用户名>/soybean-admin/
+
+2. 镜像地址
+   - 后端：ghcr.io/<你的用户名>/soybean-admin/backend:latest
+   - 前端：ghcr.io/<你的用户名>/soybean-admin/frontend:latest
+
+3. 新增文档
+   - DOCKER镜像使用指南.md - 完整的镜像使用文档
+   - 镜像快速参考.md - 命令速查表
+   - 文档导航.md - 所有文档的索引
+   - 使用说明.md - 中文使用教程
+
+4. 新增配置文件
+   - docker-compose.ghcr.yml - 使用预构建镜像的配置
+
+=================================================================
+📦 使用预构建镜像的三种方式
+=================================================================
+
+方式一：使用 docker-compose（最简单）
+-----------------------------------------------------------------
+
+1. 下载配置文件：
+   wget https://raw.githubusercontent.com/<仓库地址>/docker-compose.ghcr.yml
+
+2. 修改配置：
+   - 将 <YOUR_GITHUB_USERNAME> 替换为你的 GitHub 用户名
+   
+3. 启动服务：
+   docker-compose -f docker-compose.ghcr.yml up -d
+
+4. 访问服务：
+   - API文档：http://localhost:8000/docs
+   - 健康检查：http://localhost:8000/api/health
+
+
+方式二：手动拉取镜像
+-----------------------------------------------------------------
+
+1. 拉取镜像：
+   docker pull ghcr.io/<你的用户名>/soybean-admin/backend:latest
+   docker pull ghcr.io/<你的用户名>/soybean-admin/frontend:latest
+
+2. 运行容器：
+   # 创建网络
+   docker network create combo-network
+   
+   # 启动MySQL
+   docker run -d --name mysql --network combo-network \
+     -e MYSQL_ROOT_PASSWORD=rootpass \
+     -e MYSQL_DATABASE=combo_db \
+     -e MYSQL_USER=combo_user \
+     -e MYSQL_PASSWORD=combo_pass \
+     mysql:8.0
+   
+   # 启动Redis
+   docker run -d --name redis --network combo-network redis:7-alpine
+   
+   # 启动后端
+   docker run -d --name backend --network combo-network \
+     -p 8000:8000 \
+     -e DATABASE_URL=mysql+pymysql://combo_user:combo_pass@mysql:3306/combo_db \
+     -e REDIS_URL=redis://redis:6379/0 \
+     -e SECRET_KEY=your-secret-key \
+     ghcr.io/<你的用户名>/soybean-admin/backend:latest
+
+
+方式三：使用自动化脚本
+-----------------------------------------------------------------
+
+1. 克隆仓库：
+   git clone <仓库地址>
+   cd <项目目录>
+   git checkout feat-split-front-back-python-docker-mysql-redis
+
+2. 运行脚本：
+   chmod +x scripts/setup.sh
+   ./scripts/setup.sh
+
+=================================================================
+🔐 镜像访问权限
+=================================================================
+
+公开镜像（无需认证）：
+   直接拉取即可
+
+私有镜像（需要认证）：
+   1. 创建 GitHub Token
+      - 访问：https://github.com/settings/tokens
+      - 权限：read:packages
+   
+   2. 登录到 GHCR
+      echo "YOUR_TOKEN" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+   
+   3. 拉取镜像
+      docker pull ghcr.io/<你的用户名>/soybean-admin/backend:latest
+
+=================================================================
+📚 详细文档
+=================================================================
+
+1. 快速开始
+   - README.md - 项目主文档
+   - QUICK_START.md - 快速入门
+   - 镜像快速参考.md - 命令速查表
+
+2. Docker相关
+   - DOCKER镜像使用指南.md - 完整的镜像文档
+   - docker-compose.ghcr.yml - 镜像配置文件
+   - docker-compose.yml - 本地构建配置
+   - docker-compose.dev.yml - 开发环境配置
+
+3. 部署和架构
+   - DEPLOYMENT.md - 部署指南
+   - ARCHITECTURE.md - 架构文档
+   - PROJECT_SUMMARY.md - 项目总结
+
+4. 导航和索引
+   - 文档导航.md - 所有文档索引
+   - 使用说明.md - 中文使用教程
+
+=================================================================
+🌐 服务访问
+=================================================================
+
+启动后可访问：
+
+- 后端 API：        http://localhost:8000
+- API 文档：        http://localhost:8000/docs
+- 备用文档：        http://localhost:8000/redoc
+- 健康检查：        http://localhost:8000/api/health
+- 前端界面：        http://localhost（如果启动了frontend）
+
+数据库连接：
+
+- MySQL：           localhost:3306
+  用户名：combo_user
+  密码：combo_password
+  数据库：combo_db
+
+- Redis：           localhost:6379
+
+=================================================================
+🛠️ 常用命令
+=================================================================
+
+查看服务状态：
+   docker-compose -f docker-compose.ghcr.yml ps
+
+查看日志：
+   docker-compose -f docker-compose.ghcr.yml logs -f backend
+
+重启服务：
+   docker-compose -f docker-compose.ghcr.yml restart backend
+
+停止服务：
+   docker-compose -f docker-compose.ghcr.yml down
+
+更新镜像：
+   docker-compose -f docker-compose.ghcr.yml pull
+   docker-compose -f docker-compose.ghcr.yml up -d
+
+=================================================================
+🐛 故障排除
+=================================================================
+
+1. 容器无法启动
+   - 查看日志：docker logs <容器名>
+   - 检查端口：lsof -i :8000
+
+2. 数据库连接失败
+   - 等待MySQL启动：docker logs mysql | grep "ready"
+   - 重启后端：docker restart backend
+
+3. 镜像拉取失败
+   - 检查网络：ping ghcr.io
+   - 检查认证：docker login ghcr.io
+
+4. 更多问题
+   - 查看：QUICK_START.md 的故障排除章节
+   - 查看：DOCKER镜像使用指南.md 的故障排除章节
+
+=================================================================
+📞 获取帮助
+=================================================================
+
+1. 查看文档导航：文档导航.md
+2. 查看API文档：http://localhost:8000/docs
+3. 提交Issue：https://github.com/<你的仓库>/issues
+4. 查看日志：docker-compose logs -f
+
+=================================================================
+🎉 快速开始示例
+=================================================================
+
+# 1. 准备配置文件
+cat > docker-compose.ghcr.yml << 'EOF'
+# 从项目复制完整的 docker-compose.ghcr.yml 内容
+# 并将 <YOUR_GITHUB_USERNAME> 替换为实际用户名
+EOF
+
+# 2. 启动服务
+docker-compose -f docker-compose.ghcr.yml up -d
+
+# 3. 查看状态
+docker-compose -f docker-compose.ghcr.yml ps
+
+# 4. 测试API
+curl http://localhost:8000/api/health/ping
+
+# 5. 访问文档
+# 打开浏览器：http://localhost:8000/docs
+
+=================================================================
+
+祝使用愉快！🚀
+
+更多信息请查看：
+- 文档导航.md - 完整的文档索引
+- DOCKER镜像使用指南.md - 详细的镜像使用说明
+
+=================================================================

@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Backend API Service (Development Mode)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: combo-tool-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=Combo Tool API (Dev)
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - DATABASE_URL=mysql+pymysql://combo_user:combo_password@mysql:3306/combo_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-do-not-use-in-production
+      - CORS_ORIGINS=*
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend:/app:delegated
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - combo-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: combo-tool-mysql-dev
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: combo_db
+      MYSQL_USER: combo_user
+      MYSQL_PASSWORD: combo_password
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    networks:
+      - combo-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: combo-tool-redis-dev
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_dev_data:/data
+    restart: unless-stopped
+    networks:
+      - combo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  mysql_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  combo-network:
+    driver: bridge
